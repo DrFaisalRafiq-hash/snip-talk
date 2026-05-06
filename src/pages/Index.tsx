@@ -189,6 +189,10 @@ const Index = () => {
           <GlobalShortcutEditor />
         </div>
 
+        <div className="mt-8">
+          <ReleaseStatus />
+        </div>
+
         <div className="mt-8 flex justify-center">
           <VersionBadge />
         </div>
