@@ -96,19 +96,77 @@ function pickOsFallback(assets: any[]): any | null {
   return ranked[0]?.a ?? null;
 }
 
-async function fetchLatestMacAsset(): Promise<Asset | null> {
+// Debug mode: enable with `?debug-download=1` in URL or
+// `localStorage.setItem('debug-download', '1')`. Logs the full ranking table
+// of every release asset so you can see why a particular file was chosen.
+function isDebugEnabled(): boolean {
   try {
-    const res = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-      { headers: { Accept: "application/vnd.github+json" } }
-    );
-    if (!res.ok) return null;
+    if (typeof window === "undefined") return false;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("debug-download") === "1") return true;
+    return window.localStorage?.getItem("debug-download") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function explainScore(name: string, arch: "arm64" | "x64" | "unknown"): string {
+  const s = (name ?? "").toLowerCase();
+  const reasons: string[] = [];
+  if (/\.(sig|sha256|shasums?|json|txt|asc|md5|sha512|pem)$/.test(s)) reasons.push("sidecar/checksum → -1");
+  if (!/\.(dmg|zip)$/.test(s)) reasons.push("not .dmg/.zip");
+  if (s.endsWith(".dmg")) reasons.push("+20 dmg");
+  if (s.endsWith(".zip")) reasons.push("+5 zip");
+  if (/(^|[-_.])(mac|macos|darwin|osx|apple)([-_.]|$)/.test(s)) reasons.push("mac token");
+  if (/universal/.test(s)) reasons.push("+8 universal");
+  const isArm = /(arm64|aarch64|apple[-_.]?silicon)/.test(s);
+  const isX64 = /(x64|x86_64|intel)/.test(s);
+  if (arch === "arm64" && isArm) reasons.push("+15 arm64 match");
+  if (arch === "x64" && isX64) reasons.push("+15 x64 match");
+  if (arch === "arm64" && isX64 && !/universal/.test(s)) reasons.push("-5 wrong arch (x64)");
+  if (arch === "x64" && isArm && !/universal/.test(s)) reasons.push("-5 wrong arch (arm)");
+  if (/(win|windows|linux|android|ios)/.test(s)) reasons.push("other-OS token");
+  return reasons.join(", ") || "no signals";
+}
+
+async function fetchLatestMacAsset(): Promise<Asset | null> {
+  const debug = isDebugEnabled();
+  try {
+    const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+    if (debug) console.log("[MacDownload] fetching", url);
+    const res = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+    if (!res.ok) {
+      if (debug) console.warn("[MacDownload] release fetch failed", res.status, res.statusText);
+      return null;
+    }
     const data = await res.json();
     const assets: any[] = Array.isArray(data?.assets) ? data.assets : [];
+    if (debug) console.log(`[MacDownload] release ${data?.tag_name} has ${assets.length} assets`);
     if (assets.length === 0) return null;
     const arch = await detectMacArch();
-    // 1) Prefer arch-aware match. 2) Fall back to OS-token match ignoring arch.
-    const best = pickBest(assets, arch) ?? pickOsFallback(assets);
+    if (debug) console.log("[MacDownload] detected arch:", arch);
+
+    if (debug) {
+      const table = assets.map((a) => ({
+        name: a?.name,
+        size: a?.size,
+        score: scoreMacAsset(a?.name ?? "", arch),
+        reasons: explainScore(a?.name ?? "", arch),
+      }));
+      // Sort highest-first for easier scanning.
+      table.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+      console.groupCollapsed(`[MacDownload] asset ranking (arch=${arch})`);
+      console.table(table);
+      console.groupEnd();
+    }
+
+    const archMatch = pickBest(assets, arch);
+    const best = archMatch ?? pickOsFallback(assets);
+    if (debug) {
+      if (archMatch) console.log("[MacDownload] arch-aware pick:", archMatch.name);
+      else if (best) console.log("[MacDownload] OS-fallback pick:", best.name);
+      else console.warn("[MacDownload] no asset matched");
+    }
     if (!best) return null;
     return {
       name: best.name,
@@ -116,7 +174,8 @@ async function fetchLatestMacAsset(): Promise<Asset | null> {
       size: best.size,
       tag: data.tag_name,
     };
-  } catch {
+  } catch (e) {
+    if (debug) console.error("[MacDownload] fetch error", e);
     return null;
   }
 }
