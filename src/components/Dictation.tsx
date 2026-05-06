@@ -140,6 +140,9 @@ export function Dictation({
       start();
     } else if (command.mode === "stop" && scribe.isConnected) {
       stop();
+    } else if (command.mode === "toggle") {
+      if (scribe.isConnected) stop();
+      else if (!starting) start();
     }
     if (command.action === "copy") {
       copy();
