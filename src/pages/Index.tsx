@@ -130,6 +130,15 @@ const Index = () => {
             <InstallIphoneButton />
           </div>
           <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={enterMini}
+            title="Mini mode — quick snippet picker"
+            aria-label="Enter mini mode"
+          >
+            <Minimize2 className="h-4 w-4" />
+          </Button>
           <DeepLinkSharer />
           <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>
             Sign out
