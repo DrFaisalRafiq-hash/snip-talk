@@ -60,7 +60,32 @@ if (process.defaultApp) {
 }
 
 let mainWindow = null;
+let splashWindow = null;
 let pendingDeepLink = null; // queued until renderer is ready
+
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 480,
+    height: 320,
+    frame: false,
+    transparent: false,
+    resizable: false,
+    movable: false,
+    alwaysOnTop: true,
+    show: true,
+    backgroundColor: "#f5f3ee",
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  const splashPath = path.join(__dirname, "splash.html");
+  splashWindow.loadFile(splashPath);
+  splashWindow.on("closed", () => { splashWindow = null; });
+}
+
+function closeSplash() {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+  }
+}
 
 function extractDeepLink(argv) {
   if (!argv) return null;
@@ -85,8 +110,10 @@ function createWindow() {
     height: 760,
     minWidth: 720,
     minHeight: 520,
+    show: false,
     titleBarStyle: "hiddenInset",
     backgroundColor: "#f5f3ee",
+    icon: path.join(__dirname, "..", "build", "icon.png"),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -99,6 +126,12 @@ function createWindow() {
       spellcheck: true,
       preload: path.join(__dirname, "preload.cjs"),
     },
+  });
+
+  mainWindow.once("ready-to-show", () => {
+    closeSplash();
+    mainWindow.show();
+    mainWindow.focus();
   });
 
   if (isDev) {
@@ -224,6 +257,7 @@ app.whenReady().then(async () => {
   const initial = extractDeepLink(process.argv);
   if (initial) pendingDeepLink = initial;
 
+  createSplashWindow();
   createWindow();
 });
 
