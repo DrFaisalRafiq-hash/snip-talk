@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Apple, Download, Loader2 } from "lucide-react";
+import { Apple, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 // Configure your GitHub repo here (owner/name). If the API call fails or
@@ -104,14 +104,15 @@ export function MacDownload() {
   };
 
   return (
-    <Button variant="outline" size="sm" onClick={download} disabled={loading || busy}>
-      {busy || loading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Apple className="h-4 w-4" />
-      )}
-      Download for macOS
-      {asset?.tag && <span className="text-xs text-muted-foreground ml-1">{asset.tag}</span>}
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={download}
+      disabled={loading || busy}
+      title={asset ? `Download Snip Talk for macOS${asset.tag ? ` (${asset.tag})` : ""}` : "Download for macOS"}
+      aria-label="Download for macOS"
+    >
+      {busy || loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Apple className="h-4 w-4" />}
     </Button>
   );
 }
