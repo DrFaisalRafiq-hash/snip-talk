@@ -5,6 +5,7 @@ import Auth from "./Auth";
 import { Dictation } from "@/components/Dictation";
 import { Snippets } from "@/components/Snippets";
 import { ClipboardHistory } from "@/components/ClipboardHistory";
+import { DeepLinkSharer } from "@/components/DeepLinkSharer";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useState } from "react";
@@ -44,6 +45,7 @@ const Index = () => {
             <span className="font-serif-display text-lg">Snip Talk</span>
           </div>
           <div className="flex-1" />
+          <DeepLinkSharer />
           <Button
             variant="ghost"
             size="sm"
