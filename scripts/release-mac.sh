@@ -50,6 +50,21 @@ else
   echo "▸ building Vite bundle"
   npx vite build
 
+  # Auto-generate icon.icns from PNG if missing (allows builds without a pre-made icon)
+  if [[ ! -f build/icon.icns ]]; then
+    echo "▸ build/icon.icns not found — generating placeholder from public/apple-touch-icon.png"
+      _ICONSET="$(mktemp -d)/AppIcon.iconset"
+        mkdir -p "$_ICONSET"
+          for _SZ in 16 32 64 128 256 512; do
+              sips -z $_SZ $_SZ public/apple-touch-icon.png --out "$_ICONSET/icon_${_SZ}x${_SZ}.png"      >/dev/null 2>&1 || true
+                  sips -z $((_SZ*2)) $((_SZ*2)) public/apple-touch-icon.png --out "$_ICONSET/icon_${_SZ}x${_SZ}@2x.png" >/dev/null 2>&1 || true
+                    done
+                      iconutil -c icns "$_ICONSET" -o build/icon.icns
+                        rm -rf "$(dirname "$_ICONSET")"
+                          echo "▸ generated build/icon.icns"
+                          fi
+                          
+
   echo "▸ packaging .app for darwin/${ARCH}"
   rm -rf "$PKG_DIR"
   npx @electron/packager . "$APP_NAME" \
