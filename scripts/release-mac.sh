@@ -153,22 +153,5 @@ echo "✅ done — version $VERSION_STAMP"
 echo "   $ZIP_PATH"
 echo "   $DMG_PATH"
 
-# Emit a small JSON manifest next to the artifacts for CI / auto-update tools.
-MANIFEST="$OUT_DIR/${ARTIFACT_BASE}.json"
-cat > "$MANIFEST" <<JSON
-{
-  "name": "$APP_NAME",
-  "version": "$APP_VERSION",
-  "build": "$BUILD_NUMBER",
-  "commit": "$GIT_SHA",
-  "dirty": $([[ -n "$GIT_DIRTY" ]] && echo true || echo false),
-  "arch": "$ARCH",
-  "platform": "darwin",
-  "stamp": "$VERSION_STAMP",
-  "artifacts": {
-    "zip": "$(basename "$ZIP_PATH")",
-    "dmg": "$(basename "$DMG_PATH")"
-  }
-}
-JSON
-echo "   $MANIFEST"
+write_release_manifest "$OUT_DIR/${ARTIFACT_BASE}.json" \
+  "zip=$ZIP_PATH" "dmg=$DMG_PATH"
