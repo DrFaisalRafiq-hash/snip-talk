@@ -45,6 +45,7 @@ const Index = () => {
             <span className="font-serif-display text-lg">Snip Talk</span>
           </div>
           <div className="flex-1" />
+          <DeepLinkSharer />
           <Button
             variant="ghost"
             size="sm"
