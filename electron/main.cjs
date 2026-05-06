@@ -110,8 +110,10 @@ function createWindow() {
     height: 760,
     minWidth: 720,
     minHeight: 520,
+    show: false,
     titleBarStyle: "hiddenInset",
     backgroundColor: "#f5f3ee",
+    icon: path.join(__dirname, "..", "build", "icon.png"),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -124,6 +126,12 @@ function createWindow() {
       spellcheck: true,
       preload: path.join(__dirname, "preload.cjs"),
     },
+  });
+
+  mainWindow.once("ready-to-show", () => {
+    closeSplash();
+    mainWindow.show();
+    mainWindow.focus();
   });
 
   if (isDev) {
