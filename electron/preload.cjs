@@ -83,4 +83,8 @@ contextBridge.exposeInMainWorld("sniptalk", {
     ipcRenderer.on("snippet:paste-error", listener);
     return () => ipcRenderer.removeListener("snippet:paste-error", listener);
   },
+  /** Tray-only: publish the snippet list for the menu-bar right-click menu. */
+  setTraySnippets(snippets) {
+    return ipcRenderer.invoke("tray:set-snippets", snippets);
+  },
 });
