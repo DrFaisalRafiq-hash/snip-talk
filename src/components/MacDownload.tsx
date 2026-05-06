@@ -161,7 +161,7 @@ export function MacDownload() {
       return;
     }
     const check = validateAsset(asset);
-    if (!check.ok) {
+    if (check.ok === false) {
       const releasesUrl = `https://github.com/${GITHUB_REPO}/releases`;
       toast.error("Installer failed validation", {
         description: `${check.reason} Opening releases so you can pick a build manually.`,
