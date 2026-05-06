@@ -14,61 +14,26 @@
 #
 set -euo pipefail
 
-ARCH="${ARCH:-arm64}"
-APP_NAME="Snip Talk"
-BUNDLE_ID="com.sniptalk.app"
-APP_VERSION="$(node -p "require('./package.json').version")"
-OUT_DIR="release"
-PKG_DIR="$OUT_DIR/${APP_NAME}-darwin-${ARCH}"
-APP_PATH="$PKG_DIR/${APP_NAME}.app"
-ENTITLEMENTS="build/entitlements.mac.plist"
-
-# ---- Version stamp: <version>+<build>.<sha> ----
-# BUILD_NUMBER: prefer CI-provided, else commit count, else timestamp.
-# GIT_SHA: short commit hash, or "nogit" when not in a git checkout.
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  GIT_SHA="$(git rev-parse --short=8 HEAD)"
-  GIT_DIRTY=""
-  if ! git diff --quiet HEAD -- 2>/dev/null; then GIT_DIRTY="-dirty"; fi
-  DEFAULT_BUILD="$(git rev-list --count HEAD)"
-else
-  GIT_SHA="nogit"
-  GIT_DIRTY=""
-  DEFAULT_BUILD="$(date -u +%Y%m%d%H%M)"
-fi
-BUILD_NUMBER="${BUILD_NUMBER:-$DEFAULT_BUILD}"
-VERSION_STAMP="${APP_VERSION}+${BUILD_NUMBER}.${GIT_SHA}${GIT_DIRTY}"
-ARTIFACT_BASE="${APP_NAME// /-}-${VERSION_STAMP}-darwin-${ARCH}"
-echo "▸ version stamp: $VERSION_STAMP"
-
-
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "error: this script must run on macOS (hdiutil/codesign required)." >&2
   exit 1
 fi
 
-echo "▸ writing build-info.json"
-mkdir -p build
-cat > build/build-info.json <<JSON
-{
-  "version": "$APP_VERSION",
-  "build": "$BUILD_NUMBER",
-  "commit": "$GIT_SHA",
-  "dirty": $([[ -n "$GIT_DIRTY" ]] && echo true || echo false),
-  "stamp": "$VERSION_STAMP",
-  "arch": "$ARCH",
-  "platform": "darwin",
-  "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-JSON
+APP_NAME="Snip Talk"
+BUNDLE_ID="com.sniptalk.app"
+ARCH="${ARCH:-arm64}"
+PLATFORM="darwin"
+OUT_DIR="release"
+ENTITLEMENTS="build/entitlements.mac.plist"
+
+# Shared version stamp + build-info.json + VITE_APP_* env vars.
+. "$(dirname "$0")/lib/version-stamp.sh"
+
+PKG_DIR="$OUT_DIR/${APP_NAME}-${PLATFORM}-${ARCH}"
+APP_PATH="$PKG_DIR/${APP_NAME}.app"
 
 echo "▸ building Vite bundle"
-# Expose the stamp to the renderer (window title, About dialog, etc.)
-VITE_APP_VERSION="$APP_VERSION" \
-VITE_APP_BUILD="$BUILD_NUMBER" \
-VITE_APP_COMMIT="$GIT_SHA" \
-VITE_APP_VERSION_STAMP="$VERSION_STAMP" \
-  npx vite build
+npx vite build
 
 echo "▸ packaging .app for darwin/${ARCH}"
 rm -rf "$PKG_DIR"
