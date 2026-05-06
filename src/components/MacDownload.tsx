@@ -124,6 +124,27 @@ export function MacDownload() {
     };
   }, []);
 
+  const validateAsset = (a: Asset): { ok: true } | { ok: false; reason: string } => {
+    const name = (a.name ?? "").toLowerCase();
+    if (!name) return { ok: false, reason: "Asset has no filename." };
+    // Reject sidecar/signature/checksum/manifest files outright.
+    if (/\.(sig|asc|pem|sha256|sha512|shasums?|md5|json|txt|yml|yaml|xml)$/.test(name)) {
+      return { ok: false, reason: `${a.name} is a signature/checksum file, not an installer.` };
+    }
+    // Must be a recognized macOS installer extension.
+    if (!/\.(dmg|zip)$/.test(name)) {
+      return { ok: false, reason: `${a.name} isn't a .dmg or .zip installer.` };
+    }
+    // Size sanity (only when the API gave us a number): 1 MB – 2 GB.
+    if (typeof a.size === "number") {
+      const MIN = 1 * 1024 * 1024;
+      const MAX = 2 * 1024 * 1024 * 1024;
+      if (a.size < MIN) return { ok: false, reason: `${a.name} looks too small (${a.size} bytes).` };
+      if (a.size > MAX) return { ok: false, reason: `${a.name} looks too large (${a.size} bytes).` };
+    }
+    return { ok: true };
+  };
+
   const download = async () => {
     if (!asset) {
       const releasesUrl = `https://github.com/${GITHUB_REPO}/releases`;
