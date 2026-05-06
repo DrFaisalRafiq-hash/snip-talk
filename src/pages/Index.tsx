@@ -14,7 +14,9 @@ import { ChromeExtensionDownload } from "@/components/ChromeExtensionDownload";
 import { InstallIphoneButton } from "@/components/InstallIphoneButton";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { MiniSnippets, isMiniMode, setMiniMode } from "@/components/MiniSnippets";
 import { Button } from "@/components/ui/button";
+import { Minimize2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -36,6 +38,16 @@ const Index = () => {
     mode?: "live" | "stop" | "toggle" | "pause" | "resume";
     action?: "copy" | "clear";
   }>({ nonce: 0 });
+  const [mini, setMini] = useState<boolean>(() => isMiniMode());
+
+  const enterMini = useCallback(() => {
+    setMiniMode(true);
+    setMini(true);
+  }, []);
+  const exitMini = useCallback(() => {
+    setMiniMode(false);
+    setMini(false);
+  }, []);
 
   // Keep tab + URL hash in sync so reloads land on the same tab.
   const setTab = useCallback((t: Tab) => {
@@ -99,6 +111,7 @@ const Index = () => {
     return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">…</div>;
   }
   if (!session) return <Auth />;
+  if (mini) return <MiniSnippets userId={session.user.id} onExit={exitMini} />;
 
   return (
     <div className="min-h-screen bg-background paper-grain">
@@ -117,6 +130,15 @@ const Index = () => {
             <InstallIphoneButton />
           </div>
           <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={enterMini}
+            title="Mini mode — quick snippet picker"
+            aria-label="Enter mini mode"
+          >
+            <Minimize2 className="h-4 w-4" />
+          </Button>
           <DeepLinkSharer />
           <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>
             Sign out
