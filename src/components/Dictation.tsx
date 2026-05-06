@@ -13,6 +13,8 @@ import {
   type MicPermissionState,
 } from "@/lib/mic";
 import { recordClipboard } from "@/lib/clipboard";
+import { matchesShortcut, useShortcut } from "@/lib/shortcut";
+import { ShortcutEditor } from "@/components/ShortcutEditor";
 
 type DictationCommand = {
   /** Bumped each time the deep link arrives so effects re-run on repeats. */
