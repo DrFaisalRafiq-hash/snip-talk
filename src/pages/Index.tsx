@@ -27,7 +27,7 @@ const Index = () => {
   const [dictatePrefill, setDictatePrefill] = useState<string | undefined>(undefined);
   const [dictateCommand, setDictateCommand] = useState<{
     nonce: number;
-    mode?: "live" | "stop" | "toggle";
+    mode?: "live" | "stop" | "toggle" | "pause" | "resume";
     action?: "copy" | "clear";
   }>({ nonce: 0 });
 
@@ -72,7 +72,7 @@ const Index = () => {
         const rawMode = link.params.get("mode")?.toLowerCase();
         const rawAction = link.params.get("action")?.toLowerCase();
         const mode =
-          rawMode === "live" || rawMode === "stop" || rawMode === "toggle"
+          rawMode === "live" || rawMode === "stop" || rawMode === "toggle" || rawMode === "pause" || rawMode === "resume"
             ? rawMode
             : undefined;
         const action =
