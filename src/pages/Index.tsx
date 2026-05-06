@@ -14,7 +14,9 @@ import { ChromeExtensionDownload } from "@/components/ChromeExtensionDownload";
 import { InstallIphoneButton } from "@/components/InstallIphoneButton";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { MiniSnippets, isMiniMode, setMiniMode } from "@/components/MiniSnippets";
 import { Button } from "@/components/ui/button";
+import { Minimize2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
