@@ -104,22 +104,33 @@ jobs:
         id: artifacts
         run: |
           set -euo pipefail
-          ZIP=$(ls release/*-darwin-${{ matrix.arch }}.zip | head -n1)
-          DMG=$(ls release/*-darwin-${{ matrix.arch }}.dmg | head -n1)
-          JSON=$(ls release/*-darwin-${{ matrix.arch }}.json | head -n1)
-          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
-          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+          shopt -s nullglob
+          SUFFIX="darwin-${{ matrix.arch }}"
+          ZIP=$(ls release/*-${SUFFIX}.zip | head -n1)
+          DMG=$(ls release/*-${SUFFIX}.dmg | head -n1)
+          JSON=$(ls release/*-${SUFFIX}.json | head -n1)
+          BASE="$(basename "${JSON%.json}")"
+          echo "zip=$ZIP"   >> "$GITHUB_OUTPUT"
+          echo "dmg=$DMG"   >> "$GITHUB_OUTPUT"
           echo "json=$JSON" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "Stamped artifact base: $BASE"
 
-      - name: Upload workflow artifacts
+      - name: Upload workflow artifacts (stamped filenames)
         uses: actions/upload-artifact@v4
         with:
-          name: snip-talk-darwin-${{ matrix.arch }}
+          # Artifact name itself carries the version stamp so downloads land
+          # with the same stamped basename used for the release upload.
+          name: ${{ steps.artifacts.outputs.base }}
           path: |
-            ${{ steps.artifacts.outputs.zip }}
-            ${{ steps.artifacts.outputs.dmg }}
-            ${{ steps.artifacts.outputs.json }}
-          if-no-files-found: error
+            release/${{ steps.artifacts.outputs.base }}.zip
+            release/${{ steps.artifacts.outputs.base }}.dmg
+            release/${{ steps.artifacts.outputs.base }}.json
+            release/${{ steps.artifacts.outputs.base }}.json.sha256
+            release/${{ steps.artifacts.outputs.base }}.SHASUMS
+            release/${{ steps.artifacts.outputs.base }}.zip.sig
+            release/${{ steps.artifacts.outputs.base }}.dmg.sig
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Cleanup signing keychain
@@ -141,6 +152,43 @@ jobs:
       - name: List artifacts
         run: ls -lh dist
 
+      - name: Generate release notes from build stamps
+        id: notes
+        run: |
+          set -euo pipefail
+          NOTES="dist/RELEASE_NOTES.md"
+          TAG="${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}"
+          {
+            echo "# Snip Talk — ${TAG}"
+            echo ""
+            echo "_Built from commit \`${GITHUB_SHA}\` via run [#${GITHUB_RUN_NUMBER}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})._"
+            echo ""
+            echo "## Build stamps"
+            echo ""
+            for j in dist/*.json; do
+              [[ -e "$j" ]] || continue
+              base="$(basename "${j%.json}")"
+              stamp="$(jq -r '.versionStamp // .version_stamp // .version // empty' "$j" 2>/dev/null || true)"
+              commit="$(jq -r '.gitSha // .git_sha // .commit // empty' "$j" 2>/dev/null || true)"
+              built="$(jq -r '.builtAt // .built_at // empty'   "$j" 2>/dev/null || true)"
+              echo "### \`$base\`"
+              [[ -n "$stamp"  ]] && echo "- **Version stamp:** \`$stamp\`"
+              [[ -n "$commit" ]] && echo "- **Commit:** \`$commit\`"
+              [[ -n "$built"  ]] && echo "- **Built at:** $built"
+              echo ""
+            done
+            echo "## SHA-256 checksums"
+            echo ""
+            echo '```'
+            cat dist/*.SHASUMS 2>/dev/null || true
+            echo '```'
+            echo ""
+            echo "Verify with: \`shasum -a 256 -c <artifact>.SHASUMS\`"
+          } > "$NOTES"
+          echo "path=$NOTES" >> "$GITHUB_OUTPUT"
+          echo "----- Release notes -----"
+          cat "$NOTES"
+
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -148,8 +196,14 @@ jobs:
           name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('Build {0}', github.run_number) }}
           draft: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.path }}
+          append_body: true
           fail_on_unmatched_files: true
+          # All files use the stamped basename emitted by version-stamp.sh.
           files: |
             dist/*.dmg
             dist/*.zip
             dist/*.json
+            dist/*.SHASUMS
+            dist/*.json.sha256
+            dist/*.sig
