@@ -9,14 +9,19 @@ import {
 import { Link2, Copy, Check, Mic, FileText } from "lucide-react";
 import { toast } from "sonner";
 
-type Target = "dictate" | "snippets";
+type Target = "dictate" | "snippets" | "history";
+type Mode = "" | "live" | "stop";
+type Action = "" | "copy" | "clear";
 
-function buildLink(target: Target, text: string) {
+function buildLink(target: Target, text: string, mode: Mode, action: Action) {
   const base = `sniptalk://${target}`;
-  if (target === "dictate" && text.trim()) {
-    return `${base}?text=${encodeURIComponent(text.trim())}`;
-  }
-  return base;
+  if (target !== "dictate") return base;
+  const qs = new URLSearchParams();
+  if (text.trim()) qs.set("text", text.trim());
+  if (mode) qs.set("mode", mode);
+  if (action) qs.set("action", action);
+  const q = qs.toString();
+  return q ? `${base}?${q}` : base;
 }
 
 export function DeepLinkSharer() {
