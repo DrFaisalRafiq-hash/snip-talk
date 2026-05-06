@@ -1,0 +1,86 @@
+## Configures GitHub's auto-generated release notes.
+## Docs: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+##
+## Categorization works by **PR labels** first, then by **conventional commit
+## prefix** in the PR title (feat:, fix:, chore:, etc.) via the regex labels
+## below. Add the matching label to a PR to force it into a section.
+
+changelog:
+  exclude:
+    # Hide noisy bot/automation PRs from the changelog entirely.
+    labels:
+      - ignore-for-release
+      - skip-changelog
+      - duplicate
+      - invalid
+    authors:
+      - dependabot
+      - dependabot[bot]
+      - github-actions
+      - github-actions[bot]
+      - renovate
+      - renovate[bot]
+
+  categories:
+    - title: 🚀 Features
+      labels:
+        - feature
+        - enhancement
+        - feat
+        - "type: feature"
+        - "kind/feature"
+
+    - title: 🐛 Bug Fixes
+      labels:
+        - bug
+        - fix
+        - bugfix
+        - "type: bug"
+        - regression
+
+    - title: ⚡ Performance
+      labels:
+        - performance
+        - perf
+        - optimization
+
+    - title: 🔒 Security
+      labels:
+        - security
+        - vulnerability
+
+    - title: 📦 Build & CI
+      labels:
+        - build
+        - ci
+        - release
+        - packaging
+        - infrastructure
+
+    - title: 📚 Documentation
+      labels:
+        - documentation
+        - docs
+
+    - title: ♻️ Refactoring
+      labels:
+        - refactor
+        - refactoring
+        - cleanup
+        - chore
+
+    - title: 🧪 Tests
+      labels:
+        - test
+        - tests
+        - testing
+
+    - title: ⬆️ Dependencies
+      labels:
+        - dependencies
+        - deps
+
+    # Catch-all so nothing gets silently dropped. Keep this LAST.
+    - title: 🔧 Other Changes
+      labels:
+        - "*"
