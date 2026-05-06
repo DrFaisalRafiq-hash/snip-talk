@@ -34,23 +34,37 @@ APP_PATH="$PKG_DIR/${APP_NAME}.app"
 
 . "$(dirname "$0")/lib/release-manifest.sh"
 
-echo "▸ building Vite bundle"
-npx vite build
+if [[ -n "${PREBUILT_APP_PATH:-}" ]]; then
+  # Universal-merge path: caller already produced a .app (via @electron/universal
+  # against per-arch builds). Skip vite+packager and just stage it for signing.
+  if [[ ! -d "$PREBUILT_APP_PATH" ]]; then
+    echo "error: PREBUILT_APP_PATH=$PREBUILT_APP_PATH not found" >&2
+    exit 1
+  fi
+  echo "▸ using prebuilt .app → $PREBUILT_APP_PATH"
+  rm -rf "$PKG_DIR"
+  mkdir -p "$PKG_DIR"
+  # Copy (don't move) so the caller's artifact is preserved for debugging.
+  /usr/bin/ditto "$PREBUILT_APP_PATH" "$APP_PATH"
+else
+  echo "▸ building Vite bundle"
+  npx vite build
 
-echo "▸ packaging .app for darwin/${ARCH}"
-rm -rf "$PKG_DIR"
-npx @electron/packager . "$APP_NAME" \
-  --platform=darwin --arch="$ARCH" \
-  --out="$OUT_DIR" --overwrite \
-  --icon=build/icon.icns \
-  --app-bundle-id="$BUNDLE_ID" \
-  --app-category-type=public.app-category.productivity \
-  --app-version="$APP_VERSION" \
-  --build-version="$BUILD_NUMBER" \
-  --app-copyright="© $(date +%Y) Snip Talk" \
-  --extend-info="build/Info.plist.extend.plist" \
-  --prune=true \
-  --ignore="^/(src|public|electron|supabase|release|node_modules/.cache)"
+  echo "▸ packaging .app for darwin/${ARCH}"
+  rm -rf "$PKG_DIR"
+  npx @electron/packager . "$APP_NAME" \
+    --platform=darwin --arch="$ARCH" \
+    --out="$OUT_DIR" --overwrite \
+    --icon=build/icon.icns \
+    --app-bundle-id="$BUNDLE_ID" \
+    --app-category-type=public.app-category.productivity \
+    --app-version="$APP_VERSION" \
+    --build-version="$BUILD_NUMBER" \
+    --app-copyright="© $(date +%Y) Snip Talk" \
+    --extend-info="build/Info.plist.extend.plist" \
+    --prune=true \
+    --ignore="^/(src|public|electron|supabase|release|node_modules/.cache)"
+fi
 
 # ---- Stamp the bundle's Info.plist with version metadata ----
 INFO_PLIST="$APP_PATH/Contents/Info.plist"
