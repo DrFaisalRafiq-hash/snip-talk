@@ -47,10 +47,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: >-
-          ${{ github.event_name == 'workflow_dispatch'
-              && fromJson(format('["{0}"]', inputs.arch))
-              || fromJson('["arm64","x64","universal"]') }}
+        # On manual runs, build only the chosen arch; on tag pushes build all three.
+        arch: ${{ github.event_name == 'workflow_dispatch' && fromJson(format('["{0}"]', inputs.arch)) || fromJson('["arm64","x64","universal"]') }}
 
     steps:
       - name: Checkout
