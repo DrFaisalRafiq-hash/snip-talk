@@ -234,3 +234,13 @@ app.on("window-all-closed", () => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
+
+// Apply navigation hardening to every webContents that gets created
+app.on("web-contents-created", (_event, contents) => {
+  contents.on("will-attach-webview", (e) => e.preventDefault());
+  contents.setWindowOpenHandler(({ url }) => {
+    const target = safeUrl(url);
+    if (target && /^https?:$/.test(target.protocol)) shell.openExternal(url);
+    return { action: "deny" };
+  });
+});
