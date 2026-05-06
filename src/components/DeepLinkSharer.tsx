@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Link2, Copy, Check, Mic, FileText } from "lucide-react";
+import { Link2, Copy, Check, Mic, FileText, Clipboard } from "lucide-react";
 import { toast } from "sonner";
 
 type Target = "dictate" | "snippets" | "history";
