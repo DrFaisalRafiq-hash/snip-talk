@@ -130,6 +130,7 @@ jobs:
             release/${{ steps.artifacts.outputs.base }}.SHASUMS
             release/${{ steps.artifacts.outputs.base }}.zip.sig
             release/${{ steps.artifacts.outputs.base }}.dmg.sig
+            release/${{ steps.artifacts.outputs.base }}.notarization.log
           if-no-files-found: warn
           retention-days: 14
 
