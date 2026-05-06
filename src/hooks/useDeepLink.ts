@@ -5,13 +5,18 @@ import { useEffect } from "react";
  * process (or from in-page <a href="sniptalk://..."> clicks during dev).
  *
  * URL grammar:
- *   sniptalk://dictate                 -> focus dictation
- *   sniptalk://snippets                -> focus snippets
- *   sniptalk://dictate?text=hello      -> focus dictation with prefill
+ *   sniptalk://dictate                       -> focus dictation
+ *   sniptalk://snippets                      -> focus snippets
+ *   sniptalk://history                       -> focus clipboard history
+ *   sniptalk://dictate?text=hello            -> focus dictation with prefill
+ *   sniptalk://dictate?mode=live             -> focus dictation and start listening
+ *   sniptalk://dictate?mode=stop             -> focus dictation and stop listening
+ *   sniptalk://dictate?action=copy           -> focus dictation and copy current text
+ *   sniptalk://dictate?text=hi&mode=live     -> prefill + autostart (combinable)
  */
 export type DeepLink = {
   raw: string;
-  target: "dictate" | "snippets" | "unknown";
+  target: "dictate" | "snippets" | "history" | "unknown";
   params: URLSearchParams;
 };
 
@@ -22,11 +27,12 @@ function parse(url: string): DeepLink | null {
     const u = new URL(url.replace(/^sniptalk:\/\//, "https://_/"));
     const seg = u.pathname.replace(/^\/+/, "").split("/")[0]?.toLowerCase();
     const target: DeepLink["target"] =
-      seg === "dictate" || seg === "snippets" ? seg : "unknown";
+      seg === "dictate" || seg === "snippets" || seg === "history" ? seg : "unknown";
     return { raw: url, target, params: u.searchParams };
   } catch {
     return null;
   }
+}
 }
 
 declare global {
