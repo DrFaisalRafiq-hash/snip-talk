@@ -1,15 +1,23 @@
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Mic, Square, Copy, Trash2 } from "lucide-react";
+import { Mic, MicOff, Square, Copy, Trash2, ShieldAlert } from "lucide-react";
+import {
+  queryMicPermission,
+  requestMicPermission,
+  micDeniedMessage,
+  isMac,
+  isElectron,
+  type MicPermissionState,
+} from "@/lib/mic";
 
 export function Dictation() {
   const [partial, setPartial] = useState("");
   const [committed, setCommitted] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
-  const wasConnected = useRef(false);
+  const [micState, setMicState] = useState<MicPermissionState>("unknown");
 
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
@@ -21,14 +29,41 @@ export function Dictation() {
     },
   });
 
+  // Initial permission probe + live updates when the user changes it in the OS/browser.
   useEffect(() => {
-    wasConnected.current = scribe.isConnected;
-  }, [scribe.isConnected]);
+    let cancelled = false;
+    queryMicPermission().then((s) => !cancelled && setMicState(s));
+    let status: any;
+    (navigator as any).permissions
+      ?.query?.({ name: "microphone" as PermissionName })
+      .then((s: any) => {
+        status = s;
+        s.onchange = () => setMicState(s.state as MicPermissionState);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (status) status.onchange = null;
+    };
+  }, []);
 
   const start = useCallback(async () => {
     setStarting(true);
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const perm = await requestMicPermission();
+      setMicState(perm.state);
+      if (perm.state !== "granted") {
+        const m = micDeniedMessage();
+        if (perm.state === "denied") {
+          toast.error(m.title, { description: m.steps.join(" • ") });
+        } else {
+          toast.error(perm.error ?? "Microphone unavailable");
+        }
+        return;
+      }
+      // Stop the probe stream immediately — Scribe opens its own.
+      perm.stream?.getTracks().forEach((t) => t.stop());
+
       const { data, error } = await supabase.functions.invoke("elevenlabs-token");
       if (error || !data?.token) throw new Error(error?.message ?? "No token");
       await scribe.connect({
@@ -56,13 +91,16 @@ export function Dictation() {
 
   const clear = () => { setCommitted([]); setPartial(""); };
 
+  const denied = micState === "denied" || micState === "unsupported";
+  const denyInfo = micDeniedMessage();
+
   return (
     <div className="bg-card border rounded-2xl p-8 shadow-[var(--shadow-paper)]">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <span className={`traffic-dot ${scribe.isConnected ? "bg-[hsl(var(--signal))] animate-pulse-dot" : "bg-muted-foreground/30"}`} />
+          <span className={`traffic-dot ${scribe.isConnected ? "bg-[hsl(var(--signal))]" : "bg-muted-foreground/30"}`} />
           <span className="font-mono-tight text-xs uppercase tracking-widest text-muted-foreground">
-            {scribe.isConnected ? "Listening" : starting ? "Connecting" : "Idle"}
+            {scribe.isConnected ? "Listening" : starting ? "Connecting" : denied ? "Mic blocked" : "Idle"}
           </span>
         </div>
         <div className="flex gap-2">
@@ -70,6 +108,32 @@ export function Dictation() {
           <Button variant="ghost" size="icon" onClick={clear} disabled={!fullText}><Trash2 className="h-4 w-4" /></Button>
         </div>
       </div>
+
+      {denied && (
+        <div className="mb-5 rounded-xl border border-destructive/40 bg-destructive/5 p-4 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-mono-tight text-xs uppercase tracking-widest text-destructive mb-2">
+                {denyInfo.title}
+              </p>
+              <ol className="text-sm text-foreground/80 space-y-1 list-decimal list-inside">
+                {denyInfo.steps.map((s) => <li key={s}>{s}</li>)}
+              </ol>
+              {isMac && isElectron && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => window.open("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")}
+                >
+                  Open System Settings
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="min-h-[260px] rounded-xl bg-background/60 border border-dashed p-6 mb-6">
         {fullText ? (
@@ -79,7 +143,7 @@ export function Dictation() {
           </p>
         ) : (
           <p className="font-serif-display text-2xl text-muted-foreground/60 italic">
-            Press the mic and start speaking…
+            {denied ? "Grant microphone access above to start dictating…" : "Press the mic and start speaking…"}
           </p>
         )}
       </div>
@@ -90,8 +154,13 @@ export function Dictation() {
             <Square className="h-5 w-5 fill-current" />
           </Button>
         ) : (
-          <Button onClick={start} size="lg" disabled={starting} className="rounded-full h-16 w-16 p-0">
-            <Mic className="h-6 w-6" />
+          <Button
+            onClick={start}
+            size="lg"
+            disabled={starting || micState === "unsupported"}
+            className="rounded-full h-16 w-16 p-0"
+          >
+            {denied ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
           </Button>
         )}
         {scribe.isConnected && (
