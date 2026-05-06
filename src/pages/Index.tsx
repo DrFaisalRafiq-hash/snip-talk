@@ -38,7 +38,14 @@ const Index = () => {
     mode?: "live" | "stop" | "toggle" | "pause" | "resume";
     action?: "copy" | "clear";
   }>({ nonce: 0 });
-  const [mini, setMini] = useState<boolean>(() => isMiniMode());
+  // Tray (menu-bar) launches with ?tray=1 — start in mini snippet picker.
+  const [mini, setMini] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tray") === "1") return true;
+    }
+    return isMiniMode();
+  });
 
   const enterMini = useCallback(() => {
     setMiniMode(true);
