@@ -148,10 +148,22 @@ if [[ -n "${APPLE_IDENTITY:-}" ]]; then
   fi
 fi
 
+# ---- Detached signatures for the artifacts themselves ----
+# The DMG is codesigned in-place above; the ZIP is opaque to codesign, so
+# we emit detached .sig files for both so distributors can re-verify.
+sign_artifact_detached "$ZIP_PATH"
+sign_artifact_detached "$DMG_PATH"
+
+# ---- Manifest with sha256 of every artifact + sibling SHASUMS file ----
+write_release_manifest "$OUT_DIR/${ARTIFACT_BASE}.json" \
+  "zip=$ZIP_PATH" "dmg=$DMG_PATH" \
+  ${APPLE_IDENTITY:+"zip_sig=${ZIP_PATH}.sig" "dmg_sig=${DMG_PATH}.sig"}
+
 echo
 echo "✅ done — version $VERSION_STAMP"
 echo "   $ZIP_PATH"
 echo "   $DMG_PATH"
-
-write_release_manifest "$OUT_DIR/${ARTIFACT_BASE}.json" \
-  "zip=$ZIP_PATH" "dmg=$DMG_PATH"
+echo
+echo "Verify:"
+echo "  shasum -a 256 -c $OUT_DIR/${ARTIFACT_BASE}.SHASUMS"
+[[ -n "${APPLE_IDENTITY:-}" ]] && echo "  codesign --verify --verbose=2 --detached ${ZIP_PATH}.sig $ZIP_PATH"
