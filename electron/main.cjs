@@ -252,6 +252,13 @@ ipcMain.handle("deep-link:initial", () => {
   return url;
 });
 
+// About panel — exposes the version stamp / commit for the renderer
+ipcMain.handle("app:show-about", () => {
+  if (typeof app.showAboutPanel === "function") app.showAboutPanel();
+  return BUILD_INFO;
+});
+ipcMain.handle("app:get-build-info", () => BUILD_INFO);
+
 app.whenReady().then(async () => {
   // ---- Inject CSP header for every renderer response ----
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
