@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Logo } from "@/components/Logo";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,13 +39,9 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background paper-grain px-6">
       <div className="w-full max-w-md">
-        <div className="mb-10 text-center">
-          <div className="inline-flex items-center gap-2 mb-6">
-            <span className="traffic-dot bg-[#ff5f57]" />
-            <span className="traffic-dot bg-[#febc2e]" />
-            <span className="traffic-dot bg-[#28c840]" />
-          </div>
-          <h1 className="font-serif-display text-6xl tracking-tight">Scribe</h1>
+        <div className="mb-10 text-center flex flex-col items-center">
+          <Logo size={88} animate />
+          <h1 className="font-serif-display text-6xl tracking-tight mt-4">Scribe</h1>
           <p className="text-muted-foreground mt-2 font-mono-tight text-xs uppercase tracking-widest">
             Dictate · Capture · Reuse
           </p>
