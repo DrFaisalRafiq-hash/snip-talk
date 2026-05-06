@@ -1,0 +1,12 @@
+{
+  "name": "Scribe — Dictation & Snippets",
+  "short_name": "Scribe",
+  "description": "Live dictation with cloud-synced text snippets.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f3ee",
+  "theme_color": "#0d0d0d",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "any", "type": "image/x-icon" }
+  ]
+}
