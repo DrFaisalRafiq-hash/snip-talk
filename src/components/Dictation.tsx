@@ -156,15 +156,20 @@ export function Dictation({
 
   const clear = () => { setCommitted([]); setPartial(""); };
 
-  // Deep-link command runner: react to ?mode=live|stop and ?action=copy|clear
+  // Deep-link command runner: react to ?mode=live|stop|toggle|pause|resume and ?action=copy|clear
   useEffect(() => {
     if (!command || !command.nonce) return;
     if (command.mode === "live" && !scribe.isConnected && !starting) {
       start();
     } else if (command.mode === "stop" && scribe.isConnected) {
       stop();
+    } else if (command.mode === "pause" && scribe.isConnected) {
+      pause();
+    } else if (command.mode === "resume" && !scribe.isConnected && paused && !starting) {
+      resume();
     } else if (command.mode === "toggle") {
-      if (scribe.isConnected) stop();
+      if (scribe.isConnected) pause();
+      else if (paused && !starting) resume();
       else if (!starting) start();
     }
     if (command.action === "copy") {
@@ -182,9 +187,9 @@ export function Dictation({
     <div className="bg-card border rounded-2xl p-8 shadow-[var(--shadow-paper)]">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <span className={`traffic-dot ${scribe.isConnected ? "bg-[hsl(var(--signal))]" : "bg-muted-foreground/30"}`} />
+          <span className={`traffic-dot ${scribe.isConnected ? "bg-[hsl(var(--signal))]" : paused ? "bg-amber-500" : "bg-muted-foreground/30"}`} />
           <span className="font-mono-tight text-xs uppercase tracking-widest text-muted-foreground">
-            {scribe.isConnected ? "Listening" : starting ? "Connecting" : denied ? "Mic blocked" : "Idle"}
+            {scribe.isConnected ? "Listening" : starting ? "Connecting" : paused ? "Paused" : denied ? "Mic blocked" : "Idle"}
           </span>
           <ShortcutEditor />
         </div>
@@ -235,15 +240,52 @@ export function Dictation({
 
       <div className="flex items-center justify-center gap-4">
         {scribe.isConnected ? (
-          <Button onClick={stop} size="lg" variant="destructive" className="rounded-full h-16 w-16 p-0">
-            <Square className="h-5 w-5 fill-current" />
-          </Button>
+          <>
+            <Button
+              onClick={pause}
+              size="lg"
+              variant="outline"
+              className="rounded-full h-12 w-12 p-0"
+              title="Pause"
+              aria-label="Pause recording"
+            >
+              <Pause className="h-5 w-5" />
+            </Button>
+            <Button onClick={stop} size="lg" variant="destructive" className="rounded-full h-16 w-16 p-0" title="Stop" aria-label="Stop recording">
+              <Square className="h-5 w-5 fill-current" />
+            </Button>
+          </>
+        ) : paused ? (
+          <>
+            <Button
+              onClick={resume}
+              size="lg"
+              disabled={starting || micState === "unsupported"}
+              className="rounded-full h-16 w-16 p-0"
+              title="Resume"
+              aria-label="Resume recording"
+            >
+              <Play className="h-6 w-6" />
+            </Button>
+            <Button
+              onClick={() => { setPaused(false); clear(); }}
+              size="lg"
+              variant="outline"
+              className="rounded-full h-12 w-12 p-0"
+              title="Discard & reset"
+              aria-label="Discard and reset"
+            >
+              <Square className="h-4 w-4" />
+            </Button>
+          </>
         ) : (
           <Button
             onClick={start}
             size="lg"
             disabled={starting || micState === "unsupported"}
             className="rounded-full h-16 w-16 p-0"
+            title="Start dictation"
+            aria-label="Start dictation"
           >
             {denied ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
           </Button>
