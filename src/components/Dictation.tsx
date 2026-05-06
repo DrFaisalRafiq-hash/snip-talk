@@ -14,7 +14,24 @@ import {
 } from "@/lib/mic";
 import { recordClipboard } from "@/lib/clipboard";
 
-export function Dictation({ userId, prefill }: { userId: string; prefill?: string }) {
+type DictationCommand = {
+  /** Bumped each time the deep link arrives so effects re-run on repeats. */
+  nonce: number;
+  /** "live" -> auto-start listening, "stop" -> auto-stop. */
+  mode?: "live" | "stop";
+  /** "copy" -> copy current transcript, "clear" -> wipe transcript. */
+  action?: "copy" | "clear";
+};
+
+export function Dictation({
+  userId,
+  prefill,
+  command,
+}: {
+  userId: string;
+  prefill?: string;
+  command?: DictationCommand;
+}) {
   const [partial, setPartial] = useState("");
   const [committed, setCommitted] = useState<string[]>(prefill ? [prefill] : []);
   const [starting, setStarting] = useState(false);
