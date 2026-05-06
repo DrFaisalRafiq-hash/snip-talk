@@ -67,6 +67,35 @@ function scoreMacAsset(name: string, preferArch: "arm64" | "x64" | "unknown"): n
   return v;
 }
 
+function pickBest(assets: any[], arch: "arm64" | "x64" | "unknown"): any | null {
+  const candidates = assets
+    .map((a) => ({ a, s: scoreMacAsset(a?.name ?? "", arch) }))
+    .filter((x) => x.s >= 0)
+    .sort((a, b) => b.s - a.s);
+  return candidates[0]?.a ?? null;
+}
+
+// Loose fallback: any .dmg/.zip that mentions a mac/darwin/osx/apple token,
+// regardless of arch. Used only when arch-aware matching finds nothing.
+function pickOsFallback(assets: any[]): any | null {
+  const ranked = assets
+    .map((a) => {
+      const name = (a?.name ?? "").toLowerCase();
+      if (!name) return { a, s: -1 };
+      if (/\.(sig|asc|pem|sha256|sha512|shasums?|md5|json|txt|yml|yaml|xml)$/.test(name)) return { a, s: -1 };
+      if (!/\.(dmg|zip)$/.test(name)) return { a, s: -1 };
+      if (/(win|windows|linux|android|ios)/.test(name)) return { a, s: -1 };
+      let v = 0;
+      if (name.endsWith(".dmg")) v += 20;
+      if (name.endsWith(".zip")) v += 5;
+      if (/(^|[-_.])(mac|macos|darwin|osx|apple)([-_.]|$)/.test(name)) v += 10;
+      return { a, s: v };
+    })
+    .filter((x) => x.s >= 0)
+    .sort((a, b) => b.s - a.s);
+  return ranked[0]?.a ?? null;
+}
+
 async function fetchLatestMacAsset(): Promise<Asset | null> {
   try {
     const res = await fetch(
@@ -78,16 +107,13 @@ async function fetchLatestMacAsset(): Promise<Asset | null> {
     const assets: any[] = Array.isArray(data?.assets) ? data.assets : [];
     if (assets.length === 0) return null;
     const arch = await detectMacArch();
-    const ranked = assets
-      .map((a) => ({ a, s: scoreMacAsset(a.name ?? "", arch) }))
-      .filter((x) => x.s >= 0)
-      .sort((a, b) => b.s - a.s);
-    const best = ranked[0];
+    // 1) Prefer arch-aware match. 2) Fall back to OS-token match ignoring arch.
+    const best = pickBest(assets, arch) ?? pickOsFallback(assets);
     if (!best) return null;
     return {
-      name: best.a.name,
-      url: best.a.browser_download_url,
-      size: best.a.size,
+      name: best.name,
+      url: best.browser_download_url,
+      size: best.size,
       tag: data.tag_name,
     };
   } catch {
