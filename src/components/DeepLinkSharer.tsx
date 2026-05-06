@@ -27,9 +27,11 @@ function buildLink(target: Target, text: string, mode: Mode, action: Action) {
 export function DeepLinkSharer() {
   const [target, setTarget] = useState<Target>("dictate");
   const [text, setText] = useState("");
+  const [mode, setMode] = useState<Mode>("");
+  const [action, setAction] = useState<Action>("");
   const [copied, setCopied] = useState(false);
 
-  const link = buildLink(target, text);
+  const link = buildLink(target, text, mode, action);
 
   const copy = async () => {
     try {
