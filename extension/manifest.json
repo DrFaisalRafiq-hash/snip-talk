@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Snip Talk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Quick launcher for Snip Talk — dictation and snippets, one click away.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "tabs"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Snip Talk",
