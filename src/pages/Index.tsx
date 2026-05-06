@@ -5,6 +5,7 @@ import Auth from "./Auth";
 import { Dictation } from "@/components/Dictation";
 import { Snippets } from "@/components/Snippets";
 import { ClipboardHistory } from "@/components/ClipboardHistory";
+import { DeepLinkSharer } from "@/components/DeepLinkSharer";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useState } from "react";
