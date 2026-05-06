@@ -9,9 +9,54 @@ const {
   session,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { URL: NodeURL } = require("url");
 
 app.setName("Snip Talk");
+
+// ---- Load build-info.json (written by scripts/lib/version-stamp.sh) ----
+function loadBuildInfo() {
+  const candidates = [
+    path.join(process.resourcesPath || "", "build-info.json"),
+    path.join(__dirname, "..", "build", "build-info.json"),
+  ];
+  for (const p of candidates) {
+    try {
+      if (p && fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, "utf8"));
+    } catch {}
+  }
+  return {};
+}
+const BUILD_INFO = loadBuildInfo();
+const APP_VERSION = BUILD_INFO.version || app.getVersion();
+const VERSION_STAMP =
+  BUILD_INFO.stamp ||
+  (BUILD_INFO.build && BUILD_INFO.commit
+    ? `${APP_VERSION}+${BUILD_INFO.build}.${BUILD_INFO.commit}`
+    : `v${APP_VERSION}`);
+const SHORT_COMMIT = BUILD_INFO.commit && BUILD_INFO.commit !== "nogit" ? BUILD_INFO.commit : "";
+const WINDOW_TITLE = SHORT_COMMIT
+  ? `Snip Talk · v${APP_VERSION} (${BUILD_INFO.build || "?"} · ${SHORT_COMMIT})`
+  : `Snip Talk · v${APP_VERSION}`;
+
+// Custom About panel (macOS uses the native panel; other platforms get a fallback dialog).
+if (typeof app.setAboutPanelOptions === "function") {
+  app.setAboutPanelOptions({
+    applicationName: "Snip Talk",
+    applicationVersion: APP_VERSION,
+    version: BUILD_INFO.build || "",
+    copyright: `© ${new Date().getFullYear()} Snip Talk`,
+    credits: [
+      `Build ${BUILD_INFO.build || "dev"}`,
+      SHORT_COMMIT ? `Commit ${SHORT_COMMIT}${BUILD_INFO.dirty ? " (dirty)" : ""}` : "",
+      BUILD_INFO.builtAt ? `Built ${BUILD_INFO.builtAt}` : "",
+      BUILD_INFO.platform && BUILD_INFO.arch ? `${BUILD_INFO.platform}/${BUILD_INFO.arch}` : "",
+      `Stamp ${VERSION_STAMP}`,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  });
+}
 
 // Origins the renderer is allowed to navigate to / talk to
 const ALLOWED_ORIGINS = new Set([
@@ -111,6 +156,7 @@ function createWindow() {
     minWidth: 720,
     minHeight: 520,
     show: false,
+    title: WINDOW_TITLE,
     titleBarStyle: "hiddenInset",
     backgroundColor: "#f5f3ee",
     icon: path.join(__dirname, "..", "build", "icon.png"),
