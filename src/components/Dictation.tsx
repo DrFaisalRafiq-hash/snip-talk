@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from "react";
+import { TextRewriter } from "@/components/TextRewriter";
 import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -302,6 +303,17 @@ export function Dictation({
           </div>
         )}
       </div>
-    </div>
+
+      </div>
+
+      <TextRewriter
+        userId={userId}
+        initialText={fullText}
+        onReplace={(t) => {
+          setCommitted([t]);
+          setPartial("");
+        }}
+      />
+    </>
   );
 }
