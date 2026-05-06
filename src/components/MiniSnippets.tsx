@@ -98,7 +98,7 @@ export function MiniSnippets({
   const copy = async (s: Snippet) => {
     try {
       await navigator.clipboard.writeText(s.content);
-      await recordClipboard({ userId, content: s.content, source: "snippet" });
+      await recordClipboard(userId, s.content, "snippet");
       setCopiedId(s.id);
       setTimeout(() => setCopiedId((id) => (id === s.id ? null : id)), 900);
     } catch {
