@@ -82,7 +82,7 @@ function createWindow() {
     frame: false,
     fullscreenable: false,
     resizable: false,
-    movable: false,
+    movable: true,
     skipTaskbar: true,
     alwaysOnTop: true,
     transparent: false,
