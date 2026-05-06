@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 // Configure your GitHub repo here (owner/name). If the API call fails or
 // no asset is found, we fall back to the static file in /public.
-const GITHUB_REPO = "sniptalk/sniptalk"; // <-- update if your repo slug differs
+const GITHUB_REPO = "DrFaisalRafiq-hash/snip-talk";
 const STATIC_FALLBACK = "/snip-talk-mac.zip";
 
 type Asset = { name: string; url: string; size?: number; tag?: string };
