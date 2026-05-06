@@ -20,7 +20,7 @@ type DictationCommand = {
   /** Bumped each time the deep link arrives so effects re-run on repeats. */
   nonce: number;
   /** "live" -> auto-start, "stop" -> auto-stop, "toggle" -> flip current state. */
-  mode?: "live" | "stop" | "toggle";
+  mode?: "live" | "stop" | "toggle" | "pause" | "resume";
   /** "copy" -> copy current transcript, "clear" -> wipe transcript. */
   action?: "copy" | "clear";
 };
