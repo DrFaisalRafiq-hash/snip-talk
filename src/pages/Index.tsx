@@ -104,6 +104,7 @@ const Index = () => {
             <span className="font-serif-display text-lg">Snip Talk</span>
           </div>
           <div className="flex-1" />
+          <MicrophoneStatus />
           <DeepLinkSharer />
           <Button
             variant="ghost"
