@@ -158,21 +158,24 @@ notarize_file() {
 }
 
 # ---- Notarize ZIP (requires signed build + Apple credentials) ----
+NOTARIZE_REQUIRED=0
 if [[ -n "${APPLE_IDENTITY:-}" && -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
+  NOTARIZE_REQUIRED=1
   if notarize_file "$ZIP_PATH"; then
     echo "▸ stapling .app"
     xcrun stapler staple "$APP_PATH"
-    xcrun stapler validate "$APP_PATH" >> "$NOTARIZE_LOG" 2>&1 || true
+    xcrun stapler validate "$APP_PATH" | tee -a "$NOTARIZE_LOG"
     # re-zip so the staple ticket is included in the archive
     rm -f "$ZIP_PATH"
     ( cd "$PKG_DIR" && /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${APP_NAME}.app" "../$ZIP_NAME" )
     NOTARIZE_STATUS="accepted"
   else
     NOTARIZE_STATUS="failed"
-    echo "✖ ZIP notarization failed — see $NOTARIZE_LOG" >&2
+    echo "::error::ZIP notarization failed — see $NOTARIZE_LOG" >&2
+    exit 1
   fi
 else
-  echo "▸ skipping notarization (set APPLE_ID + APPLE_TEAM_ID + APPLE_APP_SPECIFIC_PASSWORD to enable)"
+  echo "▸ skipping notarization (set APPLE_IDENTITY + APPLE_ID + APPLE_TEAM_ID + APPLE_APP_SPECIFIC_PASSWORD to enable)"
 fi
 
 # ---- DMG (polished, native-feeling installer) ----
