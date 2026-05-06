@@ -38,6 +38,16 @@ const Index = () => {
     mode?: "live" | "stop" | "toggle" | "pause" | "resume";
     action?: "copy" | "clear";
   }>({ nonce: 0 });
+  const [mini, setMini] = useState<boolean>(() => isMiniMode());
+
+  const enterMini = useCallback(() => {
+    setMiniMode(true);
+    setMini(true);
+  }, []);
+  const exitMini = useCallback(() => {
+    setMiniMode(false);
+    setMini(false);
+  }, []);
 
   // Keep tab + URL hash in sync so reloads land on the same tab.
   const setTab = useCallback((t: Tab) => {
