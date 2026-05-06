@@ -15,6 +15,9 @@ type Snippet = {
 
 type ElectronBridge = {
   setMiniMode?: (enabled: boolean) => Promise<unknown> | unknown;
+  setTraySnippets?: (
+    list: Array<{ id: string; title: string; content: string }>,
+  ) => Promise<unknown> | unknown;
 };
 
 const MINI_KEY = "sniptalk:miniMode";
