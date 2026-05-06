@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Snip Talk</title>
+    <style>
+      :root {
+        --bg: #f5f3ee;
+        --fg: #1a1a1a;
+        --muted: #6b6b6b;
+        --border: #e3dfd5;
+        --signal: #e63946;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; }
+      body {
+        width: 280px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        padding: 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .dots { display: inline-flex; gap: 4px; align-items: center; }
+      .dots span {
+        width: 8px; height: 8px; border-radius: 999px;
+        background: var(--signal);
+        animation: blink 1.2s steps(2, end) infinite;
+      }
+      .dots span:nth-child(2) { animation-delay: .18s; }
+      .dots span:nth-child(3) { animation-delay: .36s; }
+      @keyframes blink { 50% { opacity: .15; } }
+      .title { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+      .sub { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 12px; }
+      .row {
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        font-size: 13px;
+        color: var(--fg);
+        cursor: pointer;
+        transition: transform .08s ease, background .12s ease;
+      }
+      .row:hover { background: #fffaf2; transform: translateY(-1px); }
+      .row .k { font-size: 10px; color: var(--muted); float: right; font-family: ui-monospace, SFMono-Regular, monospace; }
+      .footer { margin-top: 10px; font-size: 10px; color: var(--muted); text-align: center; }
+      input.url {
+        width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px;
+        font-size: 11px; font-family: ui-monospace, SFMono-Regular, monospace; margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="brand">
+      <span class="dots"><span></span><span></span><span></span></span>
+      <span class="title">Snip Talk</span>
+    </div>
+    <div class="sub">Quick launcher</div>
+
+    <button class="row" data-target="dictate">
+      Start dictation <span class="k">⏎</span>
+    </button>
+    <button class="row" data-target="snippets">
+      Open snippets <span class="k">S</span>
+    </button>
+    <button class="row" id="open-app">
+      Open Snip Talk
+    </button>
+
+    <input class="url" id="base-url" placeholder="https://your-app.lovable.app" />
+    <div class="footer">Set your published URL above (saved locally).</div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
