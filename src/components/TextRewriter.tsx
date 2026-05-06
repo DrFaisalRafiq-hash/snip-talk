@@ -44,6 +44,73 @@ export function TextRewriter({
   const [extra, setExtra] = useState("");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [dictateStarting, setDictateStarting] = useState(false);
+  // Snapshot of `input` at the moment dictation starts. Live partial transcript
+  // is appended visually; on commit it's folded into the snapshot so the
+  // textarea remains the single source of truth.
+  const baseTextRef = useRef("");
+  const [livePartial, setLivePartial] = useState("");
+
+  const scribe = useScribe({
+    modelId: "scribe_v2_realtime",
+    commitStrategy: CommitStrategy.VAD,
+    onPartialTranscript: (d: any) => setLivePartial(d?.text ?? ""),
+    onCommittedTranscript: (d: any) => {
+      const chunk = (d?.text ?? "").trim();
+      if (!chunk) return;
+      baseTextRef.current = baseTextRef.current
+        ? `${baseTextRef.current} ${chunk}`
+        : chunk;
+      setInput(baseTextRef.current);
+      setLivePartial("");
+    },
+  });
+
+  const startDictation = useCallback(async () => {
+    if (scribe.isConnected || dictateStarting) return;
+    setDictateStarting(true);
+    try {
+      const perm = await requestMicPermission();
+      if (perm.state !== "granted") {
+        const m = micDeniedMessage();
+        toast.error(perm.error ?? m.title, { description: m.steps.join(" • ") });
+        return;
+      }
+      perm.stream?.getTracks().forEach((t) => t.stop());
+      const { data, error } = await supabase.functions.invoke("elevenlabs-token");
+      if (error || !data?.token) throw new Error(error?.message ?? "No token");
+      baseTextRef.current = input;
+      setLivePartial("");
+      await scribe.connect({
+        token: data.token,
+        microphone: { echoCancellation: true, noiseSuppression: true },
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to start dictation");
+    } finally {
+      setDictateStarting(false);
+    }
+  }, [scribe, dictateStarting, input]);
+
+  const stopDictation = useCallback(async () => {
+    try { await scribe.disconnect(); } catch {}
+    if (livePartial.trim()) {
+      const merged = baseTextRef.current
+        ? `${baseTextRef.current} ${livePartial.trim()}`
+        : livePartial.trim();
+      baseTextRef.current = merged;
+      setInput(merged);
+    }
+    setLivePartial("");
+  }, [scribe, livePartial]);
+
+  // Cleanly disconnect if the component unmounts mid-dictation.
+  useEffect(() => {
+    return () => {
+      if (scribe.isConnected) scribe.disconnect().catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // When the parent's transcript changes (e.g. dictation finishes), pull it in
   // unless the user has started editing. Cheap heuristic: only sync if the
