@@ -32,6 +32,8 @@ ENTITLEMENTS="build/entitlements.mac.plist"
 PKG_DIR="$OUT_DIR/${APP_NAME}-${PLATFORM}-${ARCH}"
 APP_PATH="$PKG_DIR/${APP_NAME}.app"
 
+. "$(dirname "$0")/lib/release-manifest.sh"
+
 echo "▸ building Vite bundle"
 npx vite build
 
