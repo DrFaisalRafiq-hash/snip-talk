@@ -121,6 +121,10 @@ const Index = () => {
         {tab === "snippets" && <Snippets userId={session.user.id} />}
         {tab === "history" && <ClipboardHistory userId={session.user.id} />}
 
+        <div className="mt-6">
+          <GlobalShortcutEditor />
+        </div>
+
       </main>
     </div>
   );
