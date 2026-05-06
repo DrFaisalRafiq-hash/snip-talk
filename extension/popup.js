@@ -36,6 +36,18 @@ document.getElementById("open-options").addEventListener("click", () => {
   window.close();
 });
 
+document.getElementById("dictate-here").addEventListener("click", () => {
+  // Open in its own popup window — getUserMedia is unreliable inside the
+  // toolbar popup (closes on focus loss / OS prompts), but works in a window.
+  const url = chrome.runtime.getURL("dictate.html");
+  if (chrome.windows?.create) {
+    chrome.windows.create({ url, type: "popup", width: 420, height: 560 });
+  } else {
+    chrome.tabs.create({ url });
+  }
+  window.close();
+});
+
 document.addEventListener("keydown", (e) => {
   if (!settings) return;
   const match = settings.targets.find(

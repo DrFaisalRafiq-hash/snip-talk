@@ -4,6 +4,7 @@
   "version": "0.2.0",
   "description": "Quick launcher for Snip Talk — dictation and snippets, one click away.",
   "permissions": ["storage", "tabs"],
+  "host_permissions": ["https://urwovlmueuxgolccrjhb.supabase.co/*"],
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true

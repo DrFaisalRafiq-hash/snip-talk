@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Snip Talk — Dictate</title>
+    <style>
+      :root {
+        --bg: #f5f3ee;
+        --fg: #1a1a1a;
+        --muted: #6b6b6b;
+        --border: #e3dfd5;
+        --signal: #e63946;
+        --card: #ffffff;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; }
+      body {
+        width: 380px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg); color: var(--fg);
+        padding: 16px;
+      }
+      .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+      .dots { display: inline-flex; gap: 4px; }
+      .dots span {
+        width: 8px; height: 8px; border-radius: 999px; background: var(--muted);
+      }
+      .dots.live span { background: var(--signal); animation: blink 1.2s steps(2,end) infinite; }
+      .dots.live span:nth-child(2) { animation-delay: .18s; }
+      .dots.live span:nth-child(3) { animation-delay: .36s; }
+      @keyframes blink { 50% { opacity: .15; } }
+      .title { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+      .sub { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; }
+      .status { margin-left: auto; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; }
+      .card {
+        background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+        padding: 12px; min-height: 140px; max-height: 260px; overflow-y: auto;
+        font-size: 13px; line-height: 1.5; white-space: pre-wrap;
+        margin: 12px 0;
+      }
+      .card.empty { color: var(--muted); font-style: italic; }
+      .row { display: flex; gap: 8px; align-items: center; }
+      button {
+        padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+        background: #fff; cursor: pointer; font-size: 13px; font-weight: 500;
+        font-family: inherit; display: inline-flex; align-items: center; gap: 6px;
+      }
+      button:hover { transform: translateY(-1px); }
+      button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+      button.primary { background: var(--fg); color: #fff; border-color: var(--fg); }
+      button.danger { background: var(--signal); color: #fff; border-color: var(--signal); }
+      button.icon { padding: 8px 10px; }
+      .spacer { flex: 1; }
+      .err {
+        background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+        padding: 8px 10px; border-radius: 8px; font-size: 12px; margin-bottom: 10px;
+      }
+      .hint { font-size: 10px; color: var(--muted); text-align: center; margin-top: 8px; }
+      a { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="brand">
+      <span class="dots" id="dots"><span></span><span></span><span></span></span>
+      <span class="title">Snip Talk</span>
+      <span class="sub">Dictate</span>
+      <span class="status" id="status">Idle</span>
+    </div>
+
+    <div id="error" class="err" style="display:none"></div>
+
+    <div id="transcript" class="card empty">Press record and start speaking…</div>
+
+    <div class="row">
+      <button id="record" class="primary">● Record</button>
+      <button id="stop" class="danger" style="display:none">■ Stop</button>
+      <button id="pause" class="icon" style="display:none" title="Pause">⏸</button>
+      <button id="resume" class="icon" style="display:none" title="Resume">▶</button>
+      <span class="spacer"></span>
+      <button id="copy" class="icon" title="Copy" disabled>⧉</button>
+      <button id="clear" class="icon" title="Clear" disabled>✕</button>
+    </div>
+
+    <div class="hint">
+      Audio is sent to Snip Talk for transcription. <a href="popup.html">← Launcher</a>
+    </div>
+
+    <script type="module" src="dictate.js"></script>
+  </body>
+</html>
