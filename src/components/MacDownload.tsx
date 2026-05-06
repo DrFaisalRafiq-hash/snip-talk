@@ -77,7 +77,10 @@ export function MacDownload() {
 
   const download = async () => {
     if (!asset) {
-      toast.error("No macOS build available yet");
+      // Fall back to the GitHub releases page so the user can grab whatever
+      // build is available (or see that none has been published yet).
+      window.open(`https://github.com/${GITHUB_REPO}/releases`, "_blank", "noopener");
+      toast.message("Opening GitHub releases page");
       return;
     }
     setBusy(true);
@@ -108,7 +111,7 @@ export function MacDownload() {
       variant="ghost"
       size="icon"
       onClick={download}
-      disabled={loading || busy}
+      disabled={busy}
       title={asset ? `Download Snip Talk for macOS${asset.tag ? ` (${asset.tag})` : ""}` : "Download for macOS"}
       aria-label="Download for macOS"
     >
