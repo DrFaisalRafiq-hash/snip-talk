@@ -14,11 +14,17 @@ type Tab = "dictate" | "snippets" | "history";
 const Index = () => {
   const { session, loading } = useSession();
   const [tab, setTab] = useState<Tab>("dictate");
+  const [dictatePrefill, setDictatePrefill] = useState<string | undefined>(undefined);
 
   useDeepLink(
     useCallback((link) => {
-      if (link.target === "dictate" || link.target === "snippets") {
-        setTab(link.target);
+      if (link.target === "dictate") {
+        const text = link.params.get("text");
+        // Force a new reference even when the same text arrives twice in a row
+        if (text) setDictatePrefill(text);
+        setTab("dictate");
+      } else if (link.target === "snippets") {
+        setTab("snippets");
       }
     }, [])
   );
@@ -88,7 +94,7 @@ const Index = () => {
           ))}
         </div>
 
-        {tab === "dictate" && <Dictation userId={session.user.id} />}
+        {tab === "dictate" && <Dictation userId={session.user.id} prefill={dictatePrefill} />}
         {tab === "snippets" && <Snippets userId={session.user.id} />}
         {tab === "history" && <ClipboardHistory userId={session.user.id} />}
 
