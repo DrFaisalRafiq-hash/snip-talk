@@ -20,6 +20,13 @@ type Snippet = {
 export function Snippets({ userId }: { userId: string }) {
   const [items, setItems] = useState<Snippet[]>([]);
   const [active, setActive] = useState<Snippet | null>(null);
+  const {
+    isTray,
+    hasBindings,
+    accessibilityTrusted,
+    requestAccessibility,
+    openSettings,
+  } = useSnippetGlobalShortcuts(userId);
 
   const load = async () => {
     const { data, error } = await supabase
