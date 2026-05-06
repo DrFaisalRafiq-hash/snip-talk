@@ -18,7 +18,7 @@ const Index = () => {
   const [dictatePrefill, setDictatePrefill] = useState<string | undefined>(undefined);
   const [dictateCommand, setDictateCommand] = useState<{
     nonce: number;
-    mode?: "live" | "stop";
+    mode?: "live" | "stop" | "toggle";
     action?: "copy" | "clear";
   }>({ nonce: 0 });
 
@@ -29,7 +29,10 @@ const Index = () => {
         if (text) setDictatePrefill(text);
         const rawMode = link.params.get("mode")?.toLowerCase();
         const rawAction = link.params.get("action")?.toLowerCase();
-        const mode = rawMode === "live" || rawMode === "stop" ? rawMode : undefined;
+        const mode =
+          rawMode === "live" || rawMode === "stop" || rawMode === "toggle"
+            ? rawMode
+            : undefined;
         const action =
           rawAction === "copy" || rawAction === "clear" ? rawAction : undefined;
         if (mode || action) {
