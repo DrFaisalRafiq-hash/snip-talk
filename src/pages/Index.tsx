@@ -94,7 +94,7 @@ const Index = () => {
           ))}
         </div>
 
-        {tab === "dictate" && <Dictation userId={session.user.id} />}
+        {tab === "dictate" && <Dictation userId={session.user.id} prefill={dictatePrefill} />}
         {tab === "snippets" && <Snippets userId={session.user.id} />}
         {tab === "history" && <ClipboardHistory userId={session.user.id} />}
 
