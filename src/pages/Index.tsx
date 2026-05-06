@@ -13,6 +13,7 @@ import { MacDownload } from "@/components/MacDownload";
 import { ChromeExtensionDownload } from "@/components/ChromeExtensionDownload";
 import { InstallIphoneButton } from "@/components/InstallIphoneButton";
 import { UpdateChecker } from "@/components/UpdateChecker";
+import { ReleaseStatus } from "@/components/ReleaseStatus";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { MiniSnippets, isMiniMode, setMiniMode } from "@/components/MiniSnippets";
 import { Button } from "@/components/ui/button";
