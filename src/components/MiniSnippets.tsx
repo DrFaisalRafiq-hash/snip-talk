@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Copy, Maximize2, Mic, Check, Loader2, History, FileText, Sparkles } from "lucide-react";
+import { Copy, Maximize2, Mic, Check, Loader2, History, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { recordClipboard } from "@/lib/clipboard";
 import { Logo } from "@/components/Logo";
