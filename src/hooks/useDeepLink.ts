@@ -44,6 +44,18 @@ declare global {
       setGlobalShortcut?: (
         accelerator: string
       ) => Promise<{ ok: boolean; error?: string; accelerator: string }>;
+      setSnippetShortcuts?: (
+        bindings: Array<{ id: string; accelerator: string; content: string; title?: string }>
+      ) => Promise<{
+        toggle: { ok: boolean; accelerator?: string; error?: string };
+        snippets: Array<{ id: string; accelerator: string; ok: boolean; error?: string }>;
+      }>;
+      getAccessibilityStatus?: (
+        prompt?: boolean
+      ) => Promise<{ trusted: boolean; supported: boolean }>;
+      openAccessibilitySettings?: () => Promise<boolean>;
+      onSnippetPasted?: (cb: (p: { id: string; title: string }) => void) => () => void;
+      onSnippetPasteError?: (cb: (message: string) => void) => () => void;
     };
   }
 }
