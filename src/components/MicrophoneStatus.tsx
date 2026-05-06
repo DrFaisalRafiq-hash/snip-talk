@@ -50,8 +50,9 @@ export function MicrophoneStatus({ className = "" }: { className?: string }) {
 
     // Permissions API (Chromium, recent Firefox/Safari).
     try {
-      // @ts-expect-error: 'microphone' is valid but missing from older lib.dom.d.ts
-      const p = await navigator.permissions?.query({ name: "microphone" });
+      const p = await navigator.permissions?.query({
+        name: "microphone" as PermissionName,
+      });
       if (p) {
         const map = (s: string): MicStatus =>
           s === "granted" ? "granted" : s === "denied" ? "denied" : "prompt";
