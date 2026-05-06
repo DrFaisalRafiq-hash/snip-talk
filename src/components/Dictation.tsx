@@ -3,7 +3,7 @@ import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Mic, MicOff, Square, Copy, Trash2, ShieldAlert } from "lucide-react";
+import { Mic, MicOff, Square, Copy, Trash2, ShieldAlert, Pause, Play } from "lucide-react";
 import {
   queryMicPermission,
   requestMicPermission,
@@ -37,6 +37,7 @@ export function Dictation({
   const [partial, setPartial] = useState("");
   const [committed, setCommitted] = useState<string[]>(prefill ? [prefill] : []);
   const [starting, setStarting] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [micState, setMicState] = useState<MicPermissionState>("unknown");
 
   // Apply prefill whenever a new value comes in (e.g. another deep link arrives).
@@ -107,7 +108,29 @@ export function Dictation({
 
   const stop = useCallback(async () => {
     try { await scribe.disconnect(); } catch {}
+    setPaused(false);
   }, [scribe]);
+
+  // Pause = end the live session but keep the transcript so the user can resume.
+  // Scribe doesn't expose a native pause, so we disconnect and reconnect on resume.
+  const pause = useCallback(async () => {
+    if (!scribe.isConnected) return;
+    try {
+      await scribe.disconnect();
+      // Promote any in-flight partial to committed so it isn't lost.
+      setCommitted((prev) => (partial ? [...prev, partial] : prev));
+      setPartial("");
+      setPaused(true);
+      toast.message("Paused", { description: "Recording will resume when you press play." });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to pause");
+    }
+  }, [scribe, partial]);
+
+  const resume = useCallback(async () => {
+    setPaused(false);
+    await start();
+  }, [start]);
 
   // Keyboard shortcut (user-editable) toggles dictation
   const shortcut = useShortcut();
