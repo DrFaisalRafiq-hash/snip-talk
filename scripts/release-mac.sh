@@ -161,20 +161,54 @@ else
   echo "▸ skipping notarization (set APPLE_ID + APPLE_TEAM_ID + APPLE_APP_SPECIFIC_PASSWORD to enable)"
 fi
 
-# ---- DMG ----
+# ---- DMG (polished, native-feeling installer) ----
+# Uses sindresorhus/create-dmg to produce a DMG with:
+#   • custom window size + icon positions (app on left, /Applications on right)
+#   • drag-arrow background image
+#   • the app's own .icns as the volume icon
+#   • hidden Finder sidebar / toolbar / status bar
+# Falls back to a plain hdiutil DMG if create-dmg isn't available.
 DMG_NAME="${ARTIFACT_BASE}.dmg"
 DMG_PATH="$OUT_DIR/$DMG_NAME"
-STAGE_DIR="$(mktemp -d)/dmg-stage"
-mkdir -p "$STAGE_DIR"
-cp -R "$APP_PATH" "$STAGE_DIR/"
-ln -s /Applications "$STAGE_DIR/Applications"
-echo "▸ building DMG → $DMG_PATH"
 rm -f "$DMG_PATH"
-hdiutil create \
-  -volname "$APP_NAME" \
-  -srcfolder "$STAGE_DIR" \
-  -ov -format UDZO \
-  "$DMG_PATH"
+
+build_pretty_dmg() {
+  local out_dir
+  out_dir="$(mktemp -d)/dmg-out"
+  mkdir -p "$out_dir"
+  echo "▸ building polished DMG via create-dmg"
+  # --no-code-sign: we sign the DMG ourselves below with our keychain identity.
+  # --dmg-title keeps the mounted volume name short (≤27 chars).
+  npx --yes create-dmg@7 \
+    --overwrite \
+    --no-code-sign \
+    --dmg-title="$APP_NAME" \
+    "$APP_PATH" "$out_dir" >&2 || return 1
+  local produced
+  produced="$(ls "$out_dir"/*.dmg 2>/dev/null | head -n1)"
+  [[ -f "$produced" ]] || return 1
+  mv "$produced" "$DMG_PATH"
+}
+
+build_plain_dmg() {
+  echo "▸ building plain DMG via hdiutil (fallback)"
+  local stage
+  stage="$(mktemp -d)/dmg-stage"
+  mkdir -p "$stage"
+  cp -R "$APP_PATH" "$stage/"
+  ln -s /Applications "$stage/Applications"
+  hdiutil create \
+    -volname "$APP_NAME" \
+    -srcfolder "$stage" \
+    -ov -format UDZO \
+    "$DMG_PATH"
+}
+
+if ! build_pretty_dmg; then
+  echo "::warning::create-dmg failed, falling back to hdiutil"
+  build_plain_dmg
+fi
+echo "▸ DMG ready → $DMG_PATH"
 
 # Sign + notarize + staple the DMG itself for Gatekeeper
 if [[ -n "${APPLE_IDENTITY:-}" ]]; then
