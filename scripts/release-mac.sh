@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build, (optionally) sign + notarize, then emit a DMG and a ZIP for
-# distribution. Run on macOS â hdiutil and codesign are macOS-only.
+# distribution. Run on macOS Ã¢ÂÂ hdiutil and codesign are macOS-only.
 #
 #   ./scripts/release-mac.sh             # arm64 (Apple Silicon)
 #   ARCH=x64 ./scripts/release-mac.sh    # Intel
@@ -41,20 +41,20 @@ if [[ -n "${PREBUILT_APP_PATH:-}" ]]; then
     echo "error: PREBUILT_APP_PATH=$PREBUILT_APP_PATH not found" >&2
     exit 1
   fi
-  echo "â¸ using prebuilt .app â $PREBUILT_APP_PATH"
+  echo "Ã¢ÂÂ¸ using prebuilt .app Ã¢ÂÂ $PREBUILT_APP_PATH"
   rm -rf "$PKG_DIR"
   mkdir -p "$PKG_DIR"
   # Copy (don't move) so the caller's artifact is preserved for debugging.
   /usr/bin/ditto "$PREBUILT_APP_PATH" "$APP_PATH"
 else
-  echo "â¸ building Vite bundle"
+  echo "Ã¢ÂÂ¸ building Vite bundle"
   npx vite build
 
   # Set icon flag only if build/icon.icns exists
   ICON_FLAG=""
   [[ -f build/icon.icns ]] && ICON_FLAG="--icon=build/icon.icns"
 
-  echo "â¸ packaging .app for darwin/${ARCH}"
+  echo "Ã¢ÂÂ¸ packaging .app for darwin/${ARCH}"
   rm -rf "$PKG_DIR"
   npx @electron/packager . "$APP_NAME" \
     --platform=darwin --arch="$ARCH" \
@@ -64,7 +64,7 @@ else
     --app-category-type=public.app-category.productivity \
     --app-version="$APP_VERSION" \
     --build-version="$BUILD_NUMBER" \
-    --app-copyright="Â© $(date +%Y) Snip Talk" \
+    --app-copyright="ÃÂ© $(date +%Y) Snip Talk" \
     --extend-info="build/Info.plist.extend.plist" \
     --prune=true \
     --ignore="^/(src|public|supabase|release|node_modules/.cache)"
@@ -73,7 +73,7 @@ fi
 # ---- Stamp the bundle's Info.plist with version metadata ----
 INFO_PLIST="$APP_PATH/Contents/Info.plist"
 if [[ -f "$INFO_PLIST" ]]; then
-  echo "â¸ stamping Info.plist with build metadata"
+  echo "Ã¢ÂÂ¸ stamping Info.plist with build metadata"
   PB=/usr/libexec/PlistBuddy
   set_or_add() {
     local key="$1" type="$2" value="$3"
@@ -82,7 +82,7 @@ if [[ -f "$INFO_PLIST" ]]; then
   }
   set_or_add CFBundleShortVersionString string "$APP_VERSION"
   set_or_add CFBundleVersion            string "$BUILD_NUMBER"
-  set_or_add CFBundleGetInfoString      string "$VERSION_STAMP, Â© $(date +%Y) Snip Talk"
+  set_or_add CFBundleGetInfoString      string "$VERSION_STAMP, ÃÂ© $(date +%Y) Snip Talk"
   set_or_add SnipTalkBuildStamp         string "$VERSION_STAMP"
   set_or_add SnipTalkGitCommit          string "$GIT_SHA"
   set_or_add SnipTalkBuildNumber        string "$BUILD_NUMBER"
@@ -97,7 +97,7 @@ fi
 
 # ---- Sign (Developer ID) ----
 if [[ -n "${APPLE_IDENTITY:-}" ]]; then
-  echo "â¸ codesigning with ${APPLE_IDENTITY}"
+  echo "Ã¢ÂÂ¸ codesigning with ${APPLE_IDENTITY}"
   # Sign nested helpers / frameworks first, then the outer .app
   find "$APP_PATH" -name '*.dylib' -o -name '*.framework' -o -name '*.app' | \
     while read -r target; do
@@ -110,13 +110,13 @@ if [[ -n "${APPLE_IDENTITY:-}" ]]; then
     --sign "$APPLE_IDENTITY" "$APP_PATH"
   codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 else
-  echo "â¸ APPLE_IDENTITY not set â producing UNSIGNED build (Gatekeeper will warn on first launch)"
+  echo "Ã¢ÂÂ¸ APPLE_IDENTITY not set Ã¢ÂÂ producing UNSIGNED build (Gatekeeper will warn on first launch)"
 fi
 
 # ---- ZIP (always) ----
 ZIP_NAME="${ARTIFACT_BASE}.zip"
 ZIP_PATH="$OUT_DIR/$ZIP_NAME"
-echo "â¸ zipping â $ZIP_PATH"
+echo "Ã¢ÂÂ¸ zipping Ã¢ÂÂ $ZIP_PATH"
 rm -f "$ZIP_PATH"
 ( cd "$PKG_DIR" && /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${APP_NAME}.app" "../$ZIP_NAME" )
 
@@ -133,7 +133,7 @@ notarize_file() {
   local file="$1"
   local label
   label="$(basename "$file")"
-  echo "â¸ notarizing $label"
+  echo "Ã¢ÂÂ¸ notarizing $label"
   local submit_out
   submit_out="$(xcrun notarytool submit "$file" \
       --apple-id "$APPLE_ID" \
@@ -166,7 +166,7 @@ NOTARIZE_REQUIRED=0
 if [[ -n "${APPLE_IDENTITY:-}" && -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
   NOTARIZE_REQUIRED=1
   if notarize_file "$ZIP_PATH"; then
-    echo "â¸ stapling .app"
+    echo "Ã¢ÂÂ¸ stapling .app"
     xcrun stapler staple "$APP_PATH"
     xcrun stapler validate "$APP_PATH" | tee -a "$NOTARIZE_LOG"
     # re-zip so the staple ticket is included in the archive
@@ -175,19 +175,19 @@ if [[ -n "${APPLE_IDENTITY:-}" && -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" 
     NOTARIZE_STATUS="accepted"
   else
     NOTARIZE_STATUS="failed"
-    echo "::error::ZIP notarization failed â see $NOTARIZE_LOG" >&2
+    echo "::error::ZIP notarization failed Ã¢ÂÂ see $NOTARIZE_LOG" >&2
     exit 1
   fi
 else
-  echo "â¸ skipping notarization (set APPLE_IDENTITY + APPLE_ID + APPLE_TEAM_ID + APPLE_APP_SPECIFIC_PASSWORD to enable)"
+  echo "Ã¢ÂÂ¸ skipping notarization (set APPLE_IDENTITY + APPLE_ID + APPLE_TEAM_ID + APPLE_APP_SPECIFIC_PASSWORD to enable)"
 fi
 
 # ---- DMG (polished, native-feeling installer) ----
 # Uses sindresorhus/create-dmg to produce a DMG with:
-#   â¢ custom window size + icon positions (app on left, /Applications on right)
-#   â¢ drag-arrow background image
-#   â¢ the app's own .icns as the volume icon
-#   â¢ hidden Finder sidebar / toolbar / status bar
+#   Ã¢ÂÂ¢ custom window size + icon positions (app on left, /Applications on right)
+#   Ã¢ÂÂ¢ drag-arrow background image
+#   Ã¢ÂÂ¢ the app's own .icns as the volume icon
+#   Ã¢ÂÂ¢ hidden Finder sidebar / toolbar / status bar
 # Falls back to a plain hdiutil DMG if create-dmg isn't available.
 DMG_NAME="${ARTIFACT_BASE}.dmg"
 DMG_PATH="$OUT_DIR/$DMG_NAME"
@@ -197,9 +197,9 @@ build_pretty_dmg() {
   local out_dir
   out_dir="$(mktemp -d)/dmg-out"
   mkdir -p "$out_dir"
-  echo "â¸ building polished DMG via create-dmg"
+  echo "Ã¢ÂÂ¸ building polished DMG via create-dmg"
   # --no-code-sign: we sign the DMG ourselves below with our keychain identity.
-  # --dmg-title keeps the mounted volume name short (â¤27 chars).
+  # --dmg-title keeps the mounted volume name short (Ã¢ÂÂ¤27 chars).
   npx --yes create-dmg@7 \
     --overwrite \
     --no-code-sign \
@@ -212,7 +212,7 @@ build_pretty_dmg() {
 }
 
 build_plain_dmg() {
-  echo "â¸ building plain DMG via hdiutil (fallback)"
+  echo "Ã¢ÂÂ¸ building plain DMG via hdiutil (fallback)"
   local stage
   stage="$(mktemp -d)/dmg-stage"
   mkdir -p "$stage"
@@ -229,7 +229,7 @@ if ! build_pretty_dmg; then
   echo "::warning::create-dmg failed, falling back to hdiutil"
   build_plain_dmg
 fi
-echo "â¸ DMG ready â $DMG_PATH"
+echo "Ã¢ÂÂ¸ DMG ready Ã¢ÂÂ $DMG_PATH"
 
 # Sign + notarize + staple the DMG itself for Gatekeeper
 if [[ -n "${APPLE_IDENTITY:-}" ]]; then
@@ -242,7 +242,7 @@ if [[ -n "${APPLE_IDENTITY:-}" ]]; then
       spctl --assess --type install --verbose=2 "$DMG_PATH" 2>&1 | tee -a "$NOTARIZE_LOG" || true
     else
       NOTARIZE_STATUS="failed"
-      echo "::error::DMG notarization failed â see $NOTARIZE_LOG" >&2
+      echo "::error::DMG notarization failed Ã¢ÂÂ see $NOTARIZE_LOG" >&2
       exit 1
     fi
   fi
@@ -250,7 +250,7 @@ fi
 
 # ---- Final verification: assert the build matches its claimed status ----
 if [[ "$NOTARIZE_REQUIRED" == "1" ]]; then
-  echo "â¸ verifying notarization end-to-end"
+  echo "Ã¢ÂÂ¸ verifying notarization end-to-end"
   [[ "$NOTARIZE_STATUS" == "accepted" ]] || { echo "::error::notarization not accepted (status=$NOTARIZE_STATUS)"; exit 1; }
   [[ -n "$NOTARIZE_ZIP_ID" ]] || { echo "::error::missing ZIP submission id"; exit 1; }
   [[ -n "$NOTARIZE_DMG_ID" ]] || { echo "::error::missing DMG submission id"; exit 1; }
@@ -258,7 +258,7 @@ if [[ "$NOTARIZE_REQUIRED" == "1" ]]; then
   xcrun stapler validate "$APP_PATH" >/dev/null || { echo "::error::.app staple ticket invalid"; exit 1; }
   xcrun stapler validate "$DMG_PATH" >/dev/null || { echo "::error::DMG staple ticket invalid"; exit 1; }
   spctl --assess --type execute --verbose=2 "$APP_PATH" >/dev/null 2>&1 || { echo "::error::spctl rejected .app"; exit 1; }
-  echo "â notarization verified (zip=$NOTARIZE_ZIP_ID dmg=$NOTARIZE_DMG_ID)"
+  echo "Ã¢ÂÂ notarization verified (zip=$NOTARIZE_ZIP_ID dmg=$NOTARIZE_DMG_ID)"
 fi
 
 # ---- Detached signatures for the artifacts themselves ----
@@ -276,10 +276,10 @@ write_release_manifest "$OUT_DIR/${ARTIFACT_BASE}.json" \
   ${APPLE_IDENTITY:+"zip_sig=${ZIP_PATH}.sig" "dmg_sig=${DMG_PATH}.sig"}
 
 echo
-echo "â done â version $VERSION_STAMP"
+echo "Ã¢ÂÂ done Ã¢ÂÂ version $VERSION_STAMP"
 echo "   $ZIP_PATH"
 echo "   $DMG_PATH"
 echo
 echo "Verify:"
 echo "  shasum -a 256 -c $OUT_DIR/${ARTIFACT_BASE}.SHASUMS"
-[[ -n "${APPLE_IDENTITY:-}" ]] && echo "  codesign --verify --verbose=2 --detached ${ZIP_PATH}.sig $ZIP_PATH"
+[[ -n "${APPLE_IDENTITY:-}" ]] && echo "  codesign --verify --verbose=2 --detached ${ZIP_PATH}.sig $ZIP_PATH" || true
