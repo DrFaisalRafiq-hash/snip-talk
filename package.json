@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "electron": "node scripts/electron-dev.cjs",
     "electron:dev": "ELECTRON_START_URL=http://localhost:8080 electron .",
     "electron:build": "vite build && electron .",
     "electron:package:mac": "vite build && electron-packager . \"Snip Talk\" --platform=darwin --arch=arm64 --out=release --overwrite --icon=build/icon.icns --app-bundle-id=com.sniptalk.app --app-category-type=public.app-category.productivity --app-version=0.1.0 --extend-info=build/Info.plist.extend.plist --prune=true --ignore=\"^/(src|public|electron|supabase|release|node_modules/.cache)\"",
