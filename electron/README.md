@@ -1,31 +1,17 @@
-# Run as a Mac desktop app (Electron)
+# Snip Talk — macOS desktop app (Electron)
 
 After exporting this project to GitHub and pulling locally:
 
-## 1. Install dev dependencies
+## 1. Install
 
 ```bash
 npm install
 npm install --save-dev electron @electron/packager
 ```
 
-## 2. Add scripts to `package.json`
+> `package.json` already declares `"main": "electron/main.cjs"`, `"productName": "Snip Talk"`, and all `electron:*` scripts.
 
-```json
-{
-  "main": "electron/main.cjs",
-  "scripts": {
-    "electron:dev": "ELECTRON_START_URL=http://localhost:8080 electron .",
-    "electron:build": "vite build && electron .",
-    "electron:package:mac": "vite build && electron-packager . Scribe --platform=darwin --arch=arm64 --out=release --overwrite --icon=public/favicon.png",
-    "electron:package:mac-intel": "vite build && electron-packager . Scribe --platform=darwin --arch=x64 --out=release --overwrite --icon=public/favicon.png"
-  }
-}
-```
-
-> Set `"main": "electron/main.cjs"` at the top level of package.json (sibling of `scripts`).
-
-## 3. Develop with hot reload
+## 2. Develop with hot reload
 
 Terminal A:
 ```bash
@@ -37,13 +23,13 @@ Terminal B:
 npm run electron:dev
 ```
 
-## 4. Build & run packaged
+## 3. Run the packaged build locally
 
 ```bash
 npm run electron:build
 ```
 
-## 5. Package as a `.app` bundle
+## 4. Package as a `.app`
 
 Apple Silicon:
 ```bash
@@ -55,10 +41,57 @@ Intel:
 npm run electron:package:mac-intel
 ```
 
-The `.app` will appear in `release/Scribe-darwin-*`.
+Universal (arm64 + x64):
+```bash
+npm run electron:package:mac-universal
+```
+
+Output: `release/Snip Talk-darwin-<arch>/Snip Talk.app`
+
+### What's configured
+
+| Setting | Value |
+| --- | --- |
+| App name | `Snip Talk` |
+| Bundle ID | `com.sniptalk.app` |
+| Category | `public.app-category.productivity` |
+| Version | `0.1.0` (from package.json) |
+| Icon | `build/icon.icns` (generated from `public/favicon.svg`) |
+| Min macOS | 10.15 (Catalina) |
+
+The main process (`electron/main.cjs`) calls `app.setName("Snip Talk")` and proactively requests microphone access via `systemPreferences.askForMediaAccess` on first launch so macOS shows its native prompt.
+
+## 5. Regenerating the icon
+
+If you change `public/favicon.svg`, regenerate `build/icon.icns`:
+
+```bash
+# Requires librsvg + libicns (or use any tool that emits a multi-size .icns)
+for s in 16 32 128 256 512 1024; do
+  rsvg-convert -w $s -h $s public/favicon.svg -o /tmp/icon_${s}.png
+done
+png2icns build/icon.icns /tmp/icon_16.png /tmp/icon_32.png /tmp/icon_128.png /tmp/icon_256.png /tmp/icon_512.png /tmp/icon_1024.png
+```
+
+## 6. Signing & notarization (optional, for distribution)
+
+The unsigned `.app` works locally (Gatekeeper will warn on first open — right-click → Open).
+For distribution, sign and notarize with your Apple Developer ID:
+
+```bash
+codesign --deep --force --options runtime \
+  --entitlements build/entitlements.mac.plist \
+  --sign "Developer ID Application: Your Name (TEAMID)" \
+  "release/Snip Talk-darwin-arm64/Snip Talk.app"
+
+xcrun notarytool submit "Snip Talk.zip" --apple-id you@example.com --team-id TEAMID --wait
+xcrun stapler staple "release/Snip Talk-darwin-arm64/Snip Talk.app"
+```
+
+`build/entitlements.mac.plist` already enables microphone, network client, and JIT for the hardened runtime.
 
 ## Notes
 
-- `vite.config.ts` already sets `base: './'` in production so the bundle works under `file://`.
-- Microphone permission is requested on first dictation — macOS will prompt automatically.
-- For App Store / signed distribution use `electron-osx-sign` or `notarytool`.
+- `vite.config.ts` sets `base: './'` so the bundle works under `file://`.
+- Microphone permission: macOS prompts on first launch (via `askForMediaAccess`); the in-app status pill shows "Mic blocked" if the user denies.
+- The `.app` bundle's `Info.plist` includes `NSMicrophoneUsageDescription` automatically via `@electron/packager`'s `--extend-info` — see `build/Info.plist.extend.plist` if you want to merge it manually.

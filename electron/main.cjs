@@ -1,7 +1,9 @@
 // Electron main process. Loads the built Vite app from /dist.
 // Run with: npx electron . (after `npm run build`)
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, shell, systemPreferences } = require("electron");
 const path = require("path");
+
+app.setName("Snip Talk");
 
 const isDev = !app.isPackaged && process.env.ELECTRON_START_URL;
 
@@ -32,7 +34,19 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  if (process.platform === "darwin") {
+    try {
+      const status = systemPreferences.getMediaAccessStatus("microphone");
+      if (status === "not-determined") {
+        await systemPreferences.askForMediaAccess("microphone");
+      }
+    } catch {
+      // ignore — renderer surfaces a friendly error if denied
+    }
+  }
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
