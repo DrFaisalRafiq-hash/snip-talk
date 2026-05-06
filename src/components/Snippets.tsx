@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Plus, Copy, Trash2 } from "lucide-react";
+import { recordClipboard } from "@/lib/clipboard";
 
 type Snippet = {
   id: string;
@@ -60,6 +61,7 @@ export function Snippets({ userId }: { userId: string }) {
 
   const copy = async (text: string) => {
     await navigator.clipboard.writeText(text);
+    await recordClipboard(userId, text, "snippet");
     toast.success("Copied");
   };
 
