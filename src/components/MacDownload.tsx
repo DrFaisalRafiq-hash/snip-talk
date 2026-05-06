@@ -160,6 +160,19 @@ export function MacDownload() {
       });
       return;
     }
+    const check = validateAsset(asset);
+    if (!check.ok) {
+      const releasesUrl = `https://github.com/${GITHUB_REPO}/releases`;
+      toast.error("Installer failed validation", {
+        description: `${check.reason} Opening releases so you can pick a build manually.`,
+        action: {
+          label: "Open releases",
+          onClick: () => window.open(releasesUrl, "_blank", "noopener"),
+        },
+        duration: 8000,
+      });
+      return;
+    }
     setBusy(true);
     try {
       if (asset.url.startsWith("http")) {
