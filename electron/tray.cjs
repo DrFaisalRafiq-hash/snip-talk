@@ -134,6 +134,56 @@ function toggleWindow() {
   }
 }
 
+function toggleDictationFromShortcut() {
+  if (!win) return;
+  if (!win.isVisible()) {
+    positionWindow();
+    win.show();
+    win.focus();
+  }
+  win.webContents.send("deep-link", "sniptalk://dictate?mode=toggle");
+}
+
+function registerGlobalShortcut(accelerator) {
+  globalShortcut.unregisterAll();
+  if (!accelerator) return { ok: false, error: "empty" };
+  try {
+    const ok = globalShortcut.register(accelerator, toggleDictationFromShortcut);
+    return ok ? { ok: true } : { ok: false, error: "failed" };
+  } catch (e) {
+    return { ok: false, error: e?.message || "invalid" };
+  }
+}
+
+function buildTrayMenu() {
+  const accel = getAccelerator();
+  return Menu.buildFromTemplate([
+    { label: "Open Snip Talk", click: toggleWindow },
+    {
+      label: `Toggle dictation  (${accel})`,
+      click: toggleDictationFromShortcut,
+      accelerator: accel,
+    },
+    { type: "separator" },
+    { label: "Quit", click: () => app.quit() },
+  ]);
+}
+
+ipcMain.handle("tray:get-shortcut", () => ({
+  accelerator: getAccelerator(),
+  default: DEFAULT_ACCELERATOR,
+}));
+
+ipcMain.handle("tray:set-shortcut", (_e, accelerator) => {
+  const next = String(accelerator || "").trim() || DEFAULT_ACCELERATOR;
+  const result = registerGlobalShortcut(next);
+  if (result.ok) {
+    writeSettings({ toggleAccelerator: next });
+    if (tray) tray.setContextMenu(buildTrayMenu());
+  }
+  return { ...result, accelerator: next };
+});
+
 app.whenReady().then(async () => {
   // CSP + permission lockdown (microphone only)
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -152,7 +202,7 @@ app.whenReady().then(async () => {
     try {
       const status = systemPreferences.getMediaAccessStatus("microphone");
       if (status === "not-determined") {
-        await systemPreferences.askForMediaAccess("microphone");
+        systemPreferences.askForMediaAccess("microphone").catch(() => {});
       }
     } catch {}
   }
@@ -160,16 +210,19 @@ app.whenReady().then(async () => {
   tray = new Tray(buildTrayIcon());
   tray.setToolTip("Snip Talk");
   tray.on("click", toggleWindow);
-  tray.on("right-click", () => {
-    const menu = Menu.buildFromTemplate([
-      { label: "Open Snip Talk", click: toggleWindow },
-      { type: "separator" },
-      { label: "Quit", click: () => app.quit() },
-    ]);
-    tray.popUpContextMenu(menu);
-  });
+  tray.on("right-click", () => tray.popUpContextMenu(buildTrayMenu()));
 
   createWindow();
+
+  // Register the saved global accelerator (or default)
+  const result = registerGlobalShortcut(getAccelerator());
+  if (!result.ok) {
+    console.warn(`[tray] global shortcut "${getAccelerator()}" failed: ${result.error}`);
+  }
+});
+
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on("window-all-closed", (e) => {
