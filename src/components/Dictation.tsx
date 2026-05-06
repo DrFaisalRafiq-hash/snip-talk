@@ -14,11 +14,19 @@ import {
 } from "@/lib/mic";
 import { recordClipboard } from "@/lib/clipboard";
 
-export function Dictation({ userId }: { userId: string }) {
+export function Dictation({ userId, prefill }: { userId: string; prefill?: string }) {
   const [partial, setPartial] = useState("");
-  const [committed, setCommitted] = useState<string[]>([]);
+  const [committed, setCommitted] = useState<string[]>(prefill ? [prefill] : []);
   const [starting, setStarting] = useState(false);
   const [micState, setMicState] = useState<MicPermissionState>("unknown");
+
+  // Apply prefill whenever a new value comes in (e.g. another deep link arrives).
+  useEffect(() => {
+    if (prefill && prefill.trim()) {
+      setCommitted([prefill]);
+      setPartial("");
+    }
+  }, [prefill]);
 
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
