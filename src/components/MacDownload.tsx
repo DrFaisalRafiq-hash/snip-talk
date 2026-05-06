@@ -10,6 +10,63 @@ const STATIC_FALLBACK = "/snip-talk-mac.zip";
 
 type Asset = { name: string; url: string; size?: number; tag?: string };
 
+// Detect Apple Silicon vs Intel as best we can in a browser. Modern Chromium
+// exposes high-entropy UA-CH; older browsers fall back to UA string sniffing.
+async function detectMacArch(): Promise<"arm64" | "x64" | "unknown"> {
+  try {
+    const uaData = (navigator as any).userAgentData;
+    if (uaData?.getHighEntropyValues) {
+      const hi = await uaData.getHighEntropyValues(["architecture", "bitness"]);
+      if (hi?.architecture === "arm") return "arm64";
+      if (hi?.architecture === "x86" && hi?.bitness === "64") return "x64";
+    }
+  } catch {
+    /* ignore */
+  }
+  const ua = navigator.userAgent.toLowerCase();
+  if (/arm64|aarch64/.test(ua)) return "arm64";
+  // Intel Macs report "intel mac os x"; Apple Silicon often spoofs the same
+  // string but exposes >8 logical cores rarely on Intel laptops. Default to
+  // arm64 on modern macOS as that's the common case on new hardware.
+  if (/mac os x/.test(ua)) {
+    const cores = navigator.hardwareConcurrency ?? 0;
+    return cores >= 8 ? "arm64" : "x64";
+  }
+  return "unknown";
+}
+
+function isMacAsset(name: string): boolean {
+  const s = name.toLowerCase();
+  if (!/\.(dmg|zip)$/.test(s)) return false;
+  // Match macOS-ish tokens but exclude things like "extension.zip" / "win.zip".
+  if (/(^|[-_.])(mac|macos|darwin|osx|apple)([-_.]|$)/.test(s)) return true;
+  // Some builds only include the arch token.
+  if (/(arm64|aarch64|x64|x86_64|universal|intel)/.test(s) && !/(win|linux|android)/.test(s)) return true;
+  return false;
+}
+
+function scoreMacAsset(name: string, preferArch: "arm64" | "x64" | "unknown"): number {
+  const s = name.toLowerCase();
+  if (!isMacAsset(s)) return -1;
+  let v = 0;
+  // Installer over zipped .app
+  if (s.endsWith(".dmg")) v += 20;
+  if (s.endsWith(".zip")) v += 5;
+  // Arch match
+  const isArm = /(arm64|aarch64|apple[-_.]?silicon)/.test(s);
+  const isX64 = /(x64|x86_64|intel)/.test(s);
+  const isUniversal = /universal/.test(s);
+  if (isUniversal) v += 8;
+  if (preferArch === "arm64" && isArm) v += 15;
+  if (preferArch === "x64" && isX64) v += 15;
+  // Mild penalty for the wrong arch when we know what we want
+  if (preferArch === "arm64" && isX64 && !isUniversal) v -= 5;
+  if (preferArch === "x64" && isArm && !isUniversal) v -= 5;
+  // Skip detached signatures, checksums, manifests
+  if (/\.(sig|sha256|shasums?|json|txt|asc)$/.test(s)) return -1;
+  return v;
+}
+
 async function fetchLatestMacAsset(): Promise<Asset | null> {
   try {
     const res = await fetch(
@@ -18,22 +75,14 @@ async function fetchLatestMacAsset(): Promise<Asset | null> {
     );
     if (!res.ok) return null;
     const data = await res.json();
-    const assets: any[] = data?.assets ?? [];
-    // Prefer DMG (arm64 first), then ZIP
-    const score = (n: string) => {
-      const s = n.toLowerCase();
-      if (!/\.(dmg|zip)$/.test(s)) return -1;
-      if (!/(mac|darwin|osx)/.test(s)) return -1;
-      let v = 0;
-      if (s.endsWith(".dmg")) v += 10;
-      if (/arm64|aarch64|apple/.test(s)) v += 3;
-      if (/x64|x86_64|intel/.test(s)) v += 1;
-      return v;
-    };
-    const best = assets
-      .map((a) => ({ a, s: score(a.name) }))
+    const assets: any[] = Array.isArray(data?.assets) ? data.assets : [];
+    if (assets.length === 0) return null;
+    const arch = await detectMacArch();
+    const ranked = assets
+      .map((a) => ({ a, s: scoreMacAsset(a.name ?? "", arch) }))
       .filter((x) => x.s >= 0)
-      .sort((a, b) => b.s - a.s)[0];
+      .sort((a, b) => b.s - a.s);
+    const best = ranked[0];
     if (!best) return null;
     return {
       name: best.a.name,
