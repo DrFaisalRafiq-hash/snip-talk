@@ -112,6 +112,27 @@ export function Snippets({ userId }: { userId: string }) {
       </aside>
 
       <section className="p-6 flex flex-col gap-4">
+        {isTray && hasBindings && !accessibilityTrusted && (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 flex items-start gap-3">
+            <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <div className="flex-1 text-xs">
+              <p className="font-mono-tight uppercase tracking-widest text-destructive mb-1">
+                Accessibility access required
+              </p>
+              <p className="text-muted-foreground mb-2">
+                macOS needs Snip Talk to be trusted under Privacy & Security → Accessibility so it can paste snippets into other apps.
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={requestAccessibility}>
+                  Request access
+                </Button>
+                <Button size="sm" variant="ghost" onClick={openSettings}>
+                  Open System Settings
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
         {active ? (
           <>
             <div className="flex items-center gap-2">
