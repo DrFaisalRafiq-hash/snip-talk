@@ -3,19 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Defense-in-depth CSP. Inline scripts are forbidden; styles allow inline for Tailwind/Vite. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://urwovlmueuxgolccrjhb.supabase.co wss://urwovlmueuxgolccrjhb.supabase.co https://api.elevenlabs.io wss://api.elevenlabs.io; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
-    <title>Snip Talk — Dictation & Snippets</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <meta name="description" content="A Mac-style live dictation app with cloud-synced text snippets. Powered by ElevenLabs." />
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#0d0d0d" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta property="og:title" content="Snip Talk" />
-    <meta property="og:description" content="Dictate. Capture. Reuse." />
+    <!-- TODO: Set the document title to the name of your application -->
+    <title>Snip Talk</title>
+    <meta name="description" content="Speak Easy Mac is a macOS app for live dictation, text snippets, and voice-to-text transcription.">
+    <meta name="author" content="Lovable" />
+
+    <!-- TODO: Update og:title to match your application name -->
+    
+    
     <meta property="og:type" content="website" />
-  </head>
+    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/28b2bfba-4e9f-42a9-88e0-d25aba9fa410/id-preview-91faf06f--d2c71d2a-b9b8-464c-9c92-fb327a9fdabe.lovable.app-1778093412238.png">
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Lovable" />
+    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/28b2bfba-4e9f-42a9-88e0-d25aba9fa410/id-preview-91faf06f--d2c71d2a-b9b8-464c-9c92-fb327a9fdabe.lovable.app-1778093412238.png">
+    <meta property="og:title" content="Snip Talk">
+  <meta name="twitter:title" content="Snip Talk">
+  <meta property="og:description" content="Speak Easy Mac is a macOS app for live dictation, text snippets, and voice-to-text transcription.">
+  <meta name="twitter:description" content="Speak Easy Mac is a macOS app for live dictation, text snippets, and voice-to-text transcription.">
+</head>
+
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
