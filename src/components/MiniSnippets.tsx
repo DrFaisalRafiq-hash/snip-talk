@@ -80,6 +80,18 @@ export function MiniSnippets({
     setLoading(false);
     if (error) return toast.error(error.message);
     setItems(data ?? []);
+    // Mirror the list into the menu-bar (tray) right-click menu, if we're
+    // running inside the Electron tray window.
+    const bridge = (window as unknown as { sniptalk?: ElectronBridge }).sniptalk;
+    if (bridge?.setTraySnippets) {
+      try {
+        bridge.setTraySnippets(
+          (data ?? []).map((s) => ({ id: s.id, title: s.title, content: s.content })),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
   }, []);
 
   useEffect(() => {
