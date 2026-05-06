@@ -15,9 +15,11 @@ const {
   session,
   globalShortcut,
   ipcMain,
+  clipboard,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { execFile } = require("child_process");
 
 const SETTINGS_PATH = path.join(app.getPath("userData"), "tray-settings.json");
 const DEFAULT_ACCELERATOR = "CommandOrControl+Shift+D";
@@ -144,15 +146,73 @@ function toggleDictationFromShortcut() {
   win.webContents.send("deep-link", "sniptalk://dictate?mode=toggle");
 }
 
-function registerGlobalShortcut(accelerator) {
-  globalShortcut.unregisterAll();
-  if (!accelerator) return { ok: false, error: "empty" };
-  try {
-    const ok = globalShortcut.register(accelerator, toggleDictationFromShortcut);
-    return ok ? { ok: true } : { ok: false, error: "failed" };
-  } catch (e) {
-    return { ok: false, error: e?.message || "invalid" };
+// In-memory list of snippet bindings supplied by the renderer.
+// [{ id, accelerator, content, title }]
+let snippetBindings = [];
+
+function pasteViaAppleScript() {
+  if (process.platform !== "darwin") return;
+  // Requires Accessibility permission (System Settings > Privacy & Security > Accessibility)
+  execFile(
+    "osascript",
+    ["-e", 'tell application "System Events" to keystroke "v" using command down'],
+    (err) => {
+      if (err) {
+        // Likely missing Accessibility permission. Trigger the prompt.
+        try {
+          systemPreferences.isTrustedAccessibilityClient(true);
+        } catch {}
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(
+            "snippet:paste-error",
+            "Accessibility permission required to paste. Enable Snip Talk under System Settings → Privacy & Security → Accessibility."
+          );
+        }
+      }
+    }
+  );
+}
+
+function pasteSnippet(binding) {
+  if (!binding) return;
+  clipboard.writeText(binding.content || "");
+  // Tiny delay so the active app sees the new clipboard contents
+  setTimeout(pasteViaAppleScript, 60);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("snippet:pasted", { id: binding.id, title: binding.title });
   }
+}
+
+function registerAllShortcuts() {
+  globalShortcut.unregisterAll();
+  const results = { toggle: { ok: false }, snippets: [] };
+
+  const toggleAccel = getAccelerator();
+  try {
+    const ok = globalShortcut.register(toggleAccel, toggleDictationFromShortcut);
+    results.toggle = ok ? { ok: true, accelerator: toggleAccel } : { ok: false, accelerator: toggleAccel, error: "failed" };
+  } catch (e) {
+    results.toggle = { ok: false, accelerator: toggleAccel, error: e?.message || "invalid" };
+  }
+
+  for (const b of snippetBindings) {
+    if (!b?.accelerator) continue;
+    try {
+      const ok = globalShortcut.register(b.accelerator, () => pasteSnippet(b));
+      results.snippets.push({ id: b.id, accelerator: b.accelerator, ok, error: ok ? undefined : "conflict" });
+    } catch (e) {
+      results.snippets.push({ id: b.id, accelerator: b.accelerator, ok: false, error: e?.message || "invalid" });
+    }
+  }
+  return results;
+}
+
+function registerGlobalShortcut(accelerator) {
+  // Back-compat wrapper for the toggle-only path used by `tray:set-shortcut`
+  const next = String(accelerator || "").trim() || DEFAULT_ACCELERATOR;
+  writeSettings({ toggleAccelerator: next });
+  const r = registerAllShortcuts();
+  return r.toggle.ok ? { ok: true } : { ok: false, error: r.toggle.error || "failed" };
 }
 
 function buildTrayMenu() {
@@ -176,12 +236,45 @@ ipcMain.handle("tray:get-shortcut", () => ({
 
 ipcMain.handle("tray:set-shortcut", (_e, accelerator) => {
   const next = String(accelerator || "").trim() || DEFAULT_ACCELERATOR;
-  const result = registerGlobalShortcut(next);
-  if (result.ok) {
-    writeSettings({ toggleAccelerator: next });
-    if (tray) tray.setContextMenu(buildTrayMenu());
+  // Persist first so registerAllShortcuts picks up the new value
+  writeSettings({ toggleAccelerator: next });
+  const r = registerAllShortcuts();
+  if (r.toggle.ok && tray) tray.setContextMenu(buildTrayMenu());
+  return { ...r.toggle, accelerator: next };
+});
+
+ipcMain.handle("tray:set-snippet-shortcuts", (_e, bindings) => {
+  snippetBindings = Array.isArray(bindings)
+    ? bindings
+        .filter((b) => b && b.id && b.accelerator)
+        .map((b) => ({
+          id: String(b.id),
+          accelerator: String(b.accelerator),
+          content: String(b.content ?? ""),
+          title: String(b.title ?? ""),
+        }))
+    : [];
+  return registerAllShortcuts();
+});
+
+ipcMain.handle("tray:accessibility-status", (_e, prompt = false) => {
+  if (process.platform !== "darwin") return { trusted: true, supported: false };
+  try {
+    return {
+      trusted: systemPreferences.isTrustedAccessibilityClient(!!prompt),
+      supported: true,
+    };
+  } catch {
+    return { trusted: false, supported: true };
   }
-  return { ...result, accelerator: next };
+});
+
+ipcMain.handle("tray:open-accessibility-settings", () => {
+  if (process.platform !== "darwin") return false;
+  shell.openExternal(
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+  );
+  return true;
 });
 
 app.whenReady().then(async () => {

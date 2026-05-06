@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Plus, Copy, Trash2 } from "lucide-react";
+import { Plus, Copy, Trash2, ShieldAlert } from "lucide-react";
 import { recordClipboard } from "@/lib/clipboard";
+import { AcceleratorRecorder, formatAccelerator } from "@/components/AcceleratorRecorder";
+import { useSnippetGlobalShortcuts } from "@/hooks/useSnippetGlobalShortcuts";
 
 type Snippet = {
   id: string;
@@ -18,6 +20,13 @@ type Snippet = {
 export function Snippets({ userId }: { userId: string }) {
   const [items, setItems] = useState<Snippet[]>([]);
   const [active, setActive] = useState<Snippet | null>(null);
+  const {
+    isTray,
+    hasBindings,
+    accessibilityTrusted,
+    requestAccessibility,
+    openSettings,
+  } = useSnippetGlobalShortcuts(userId);
 
   const load = async () => {
     const { data, error } = await supabase
@@ -86,7 +95,14 @@ export function Snippets({ userId }: { userId: string }) {
                 active?.id === s.id ? "bg-secondary" : "hover:bg-secondary/50"
               }`}
             >
-              <div className="text-sm font-medium truncate">{s.title || "Untitled"}</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-medium truncate">{s.title || "Untitled"}</div>
+                {s.shortcut && (
+                  <span className="shrink-0 rounded border bg-background/60 px-1.5 py-0.5 font-mono-tight text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {formatAccelerator(s.shortcut)}
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-muted-foreground truncate mt-0.5">
                 {s.content || "Empty"}
               </div>
@@ -96,6 +112,27 @@ export function Snippets({ userId }: { userId: string }) {
       </aside>
 
       <section className="p-6 flex flex-col gap-4">
+        {isTray && hasBindings && !accessibilityTrusted && (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 flex items-start gap-3">
+            <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <div className="flex-1 text-xs">
+              <p className="font-mono-tight uppercase tracking-widest text-destructive mb-1">
+                Accessibility access required
+              </p>
+              <p className="text-muted-foreground mb-2">
+                macOS needs Snip Talk to be trusted under Privacy & Security → Accessibility so it can paste snippets into other apps.
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={requestAccessibility}>
+                  Request access
+                </Button>
+                <Button size="sm" variant="ghost" onClick={openSettings}>
+                  Open System Settings
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
         {active ? (
           <>
             <div className="flex items-center gap-2">
@@ -112,12 +149,18 @@ export function Snippets({ userId }: { userId: string }) {
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-            <Input
-              value={active.shortcut ?? ""}
-              onChange={(e) => save({ shortcut: e.target.value || null })}
-              placeholder="Shortcut e.g. /sig"
-              className="font-mono-tight text-xs max-w-xs"
-            />
+            <div className="flex items-center gap-3 -mt-2">
+              <span className="font-mono-tight text-[10px] uppercase tracking-widest text-muted-foreground">
+                Global shortcut
+              </span>
+              <AcceleratorRecorder
+                value={active.shortcut}
+                onChange={(next) => save({ shortcut: next })}
+              />
+              <span className="text-[11px] text-muted-foreground">
+                Triggers paste system-wide (macOS app required)
+              </span>
+            </div>
             <Textarea
               value={active.content}
               onChange={(e) => save({ content: e.target.value })}

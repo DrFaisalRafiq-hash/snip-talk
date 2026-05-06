@@ -31,4 +31,32 @@ contextBridge.exposeInMainWorld("sniptalk", {
   setGlobalShortcut(accelerator) {
     return ipcRenderer.invoke("tray:set-shortcut", accelerator);
   },
+  /** Tray-only: replace the full snippet→accelerator binding list. */
+  setSnippetShortcuts(bindings) {
+    return ipcRenderer.invoke("tray:set-snippet-shortcuts", bindings);
+  },
+  /** Tray-only: check macOS Accessibility trust status; pass true to prompt. */
+  getAccessibilityStatus(prompt = false) {
+    return ipcRenderer.invoke("tray:accessibility-status", prompt);
+  },
+  /** Tray-only: open System Settings → Privacy & Security → Accessibility. */
+  openAccessibilitySettings() {
+    return ipcRenderer.invoke("tray:open-accessibility-settings");
+  },
+  /** Tray-only: subscribe to "snippet pasted" notifications. */
+  onSnippetPasted(handler) {
+    const listener = (_e, payload) => {
+      try { handler(payload); } catch {}
+    };
+    ipcRenderer.on("snippet:pasted", listener);
+    return () => ipcRenderer.removeListener("snippet:pasted", listener);
+  },
+  /** Tray-only: subscribe to paste-error notifications (e.g. missing Accessibility). */
+  onSnippetPasteError(handler) {
+    const listener = (_e, message) => {
+      try { handler(message); } catch {}
+    };
+    ipcRenderer.on("snippet:paste-error", listener);
+    return () => ipcRenderer.removeListener("snippet:paste-error", listener);
+  },
 });
