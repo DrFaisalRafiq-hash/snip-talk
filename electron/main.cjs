@@ -257,6 +257,7 @@ app.whenReady().then(async () => {
   const initial = extractDeepLink(process.argv);
   if (initial) pendingDeepLink = initial;
 
+  createSplashWindow();
   createWindow();
 });
 
