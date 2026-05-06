@@ -61,7 +61,25 @@ Output: `release/Snip Talk-darwin-<arch>/Snip Talk.app`
 
 The main process (`electron/main.cjs`) calls `app.setName("Snip Talk")` and proactively requests microphone access via `systemPreferences.askForMediaAccess` on first launch so macOS shows its native prompt.
 
-## 5. Regenerating the icon
+## 5. Deep links — `sniptalk://`
+
+The app registers the `sniptalk://` URL scheme. Opening these URLs from Safari, Mail, Terminal (`open sniptalk://dictate`), or another app launches Snip Talk (or focuses it if already running) and switches to the right tab.
+
+| URL | Effect |
+| --- | --- |
+| `sniptalk://dictate` | Focus the Dictation tab |
+| `sniptalk://snippets` | Focus the Snippets tab |
+| `sniptalk://dictate?text=hello` | Same, with query params for future use |
+
+How it works:
+- `build/Info.plist.extend.plist` registers `CFBundleURLTypes`, merged into the packaged `.app` via `electron-packager --extend-info`.
+- `electron/main.cjs` enforces a single-instance lock and listens to `open-url` (macOS) + `second-instance` (Win/Linux), forwarding URLs to the renderer over IPC.
+- `electron/preload.cjs` exposes `window.sniptalk.{onDeepLink, getInitialDeepLink}` to the renderer behind context isolation.
+- `src/hooks/useDeepLink.ts` parses URLs and routes to the right tab.
+
+For browser-only testing, append `?deeplink=sniptalk://snippets` to the preview URL.
+
+## 6. Regenerating the icon
 
 If you change `public/favicon.svg`, regenerate `build/icon.icns`:
 
