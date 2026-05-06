@@ -1,6 +1,6 @@
 {
-  "name": "Scribe — Dictation & Snippets",
-  "short_name": "Scribe",
+  "name": "Snip Talk — Dictation & Snippets",
+  "short_name": "Snip Talk",
   "description": "Live dictation with cloud-synced text snippets.",
   "start_url": "/",
   "display": "standalone",

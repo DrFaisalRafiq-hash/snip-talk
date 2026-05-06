@@ -28,7 +28,7 @@ const Index = () => {
           </div>
           <div className="flex-1 flex items-center justify-center gap-2">
             <Logo size={22} />
-            <span className="font-serif-display text-lg">Scribe</span>
+            <span className="font-serif-display text-lg">Snip Talk</span>
           </div>
           <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>
             Sign out
@@ -42,7 +42,7 @@ const Index = () => {
             Speak it. Save it. Reuse it.
           </h1>
           <p className="text-muted-foreground mt-3 max-w-xl">
-            Live dictation powered by ElevenLabs Scribe with a tidy library of text snippets that sync to every device.
+            Live dictation powered by ElevenLabs with a tidy library of text snippets that sync to every device.
           </p>
         </div>
 
