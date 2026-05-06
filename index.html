@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Defense-in-depth CSP. Inline scripts are forbidden; styles allow inline for Tailwind/Vite. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://urwovlmueuxgolccrjhb.supabase.co wss://urwovlmueuxgolccrjhb.supabase.co https://api.elevenlabs.io wss://api.elevenlabs.io; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
     <title>Snip Talk — Dictation & Snippets</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta name="description" content="A Mac-style live dictation app with cloud-synced text snippets. Powered by ElevenLabs." />
