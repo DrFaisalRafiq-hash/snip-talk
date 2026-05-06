@@ -110,7 +110,13 @@ const Index = () => {
           ))}
         </div>
 
-        {tab === "dictate" && <Dictation userId={session.user.id} prefill={dictatePrefill} />}
+        {tab === "dictate" && (
+          <Dictation
+            userId={session.user.id}
+            prefill={dictatePrefill}
+            command={dictateCommand}
+          />
+        )}
         {tab === "snippets" && <Snippets userId={session.user.id} />}
         {tab === "history" && <ClipboardHistory userId={session.user.id} />}
 
