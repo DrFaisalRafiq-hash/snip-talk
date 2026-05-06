@@ -82,7 +82,7 @@ else
 fi
 
 # ---- ZIP (always) ----
-ZIP_NAME="${APP_NAME// /-}-${APP_VERSION}-darwin-${ARCH}.zip"
+ZIP_NAME="${ARTIFACT_BASE}.zip"
 ZIP_PATH="$OUT_DIR/$ZIP_NAME"
 echo "▸ zipping → $ZIP_PATH"
 rm -f "$ZIP_PATH"
@@ -106,7 +106,7 @@ else
 fi
 
 # ---- DMG ----
-DMG_NAME="${APP_NAME// /-}-${APP_VERSION}-darwin-${ARCH}.dmg"
+DMG_NAME="${ARTIFACT_BASE}.dmg"
 DMG_PATH="$OUT_DIR/$DMG_NAME"
 STAGE_DIR="$(mktemp -d)/dmg-stage"
 mkdir -p "$STAGE_DIR"
