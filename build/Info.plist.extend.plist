@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+    <string>Snip Talk uses the microphone for voice recognition.</string>
+      <key>NSCameraUsageDescription</key>
+        <string>Snip Talk may access the camera for video features.</string>
+          <key>NSAppleEventsUsageDescription</key>
+            <string>Snip Talk uses Apple Events for automation.</string>
+            </dict>
+            </plist>
