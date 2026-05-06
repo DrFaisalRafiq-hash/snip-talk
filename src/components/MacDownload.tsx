@@ -126,18 +126,24 @@ export function MacDownload() {
 
   const download = async () => {
     if (!asset) {
-      // Fall back to the GitHub releases page so the user can grab whatever
-      // build is available (or see that none has been published yet).
-      window.open(`https://github.com/${GITHUB_REPO}/releases`, "_blank", "noopener");
-      toast.message("Opening GitHub releases page");
+      const releasesUrl = `https://github.com/${GITHUB_REPO}/releases`;
+      window.open(releasesUrl, "_blank", "noopener");
+      toast.message("No macOS installer detected", {
+        description:
+          "We couldn't find a matching .dmg or .zip on the latest release. Opening the GitHub releases page so you can pick a build manually.",
+        action: {
+          label: "Open releases",
+          onClick: () => window.open(releasesUrl, "_blank", "noopener"),
+        },
+        duration: 8000,
+      });
       return;
     }
     setBusy(true);
     try {
-      // For GitHub assets, opening in a new tab triggers download with proper headers.
-      // For the static fallback, fetch+blob avoids preview auth issues.
       if (asset.url.startsWith("http")) {
         window.open(asset.url, "_blank", "noopener");
+        toast.success(`Downloading ${asset.name}${asset.tag ? ` (${asset.tag})` : ""}`);
       } else {
         const res = await fetch(asset.url);
         if (!res.ok) throw new Error(`Download failed (${res.status})`);
@@ -149,11 +155,24 @@ export function MacDownload() {
         URL.revokeObjectURL(a.href);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Download failed");
+      toast.error(e instanceof Error ? e.message : "Download failed", {
+        description: "You can still grab a build manually from GitHub releases.",
+        action: {
+          label: "Open releases",
+          onClick: () =>
+            window.open(`https://github.com/${GITHUB_REPO}/releases`, "_blank", "noopener"),
+        },
+      });
     } finally {
       setBusy(false);
     }
   };
+
+  const tooltip = loading
+    ? "Checking for the latest macOS build…"
+    : asset
+    ? `Download ${asset.name}${asset.tag ? ` (${asset.tag})` : ""}`
+    : "No macOS installer found — click to open GitHub releases";
 
   return (
     <Button
@@ -161,10 +180,17 @@ export function MacDownload() {
       size="icon"
       onClick={download}
       disabled={busy}
-      title={asset ? `Download Snip Talk for macOS${asset.tag ? ` (${asset.tag})` : ""}` : "Download for macOS"}
-      aria-label="Download for macOS"
+      title={tooltip}
+      aria-label={tooltip}
+      className="relative"
     >
       {busy || loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Apple className="h-4 w-4" />}
+      {!loading && !asset && (
+        <span
+          className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive"
+          aria-hidden="true"
+        />
+      )}
     </Button>
   );
 }
