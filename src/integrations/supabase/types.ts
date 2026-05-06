@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      clipboard_history: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          pinned: boolean
+          source: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          source?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       snippets: {
         Row: {
           content: string

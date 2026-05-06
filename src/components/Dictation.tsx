@@ -12,8 +12,9 @@ import {
   isElectron,
   type MicPermissionState,
 } from "@/lib/mic";
+import { recordClipboard } from "@/lib/clipboard";
 
-export function Dictation() {
+export function Dictation({ userId }: { userId: string }) {
   const [partial, setPartial] = useState("");
   const [committed, setCommitted] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
@@ -100,6 +101,7 @@ export function Dictation() {
   const copy = async () => {
     if (!fullText) return;
     await navigator.clipboard.writeText(fullText);
+    await recordClipboard(userId, fullText, "dictation");
     toast.success("Copied");
   };
 
