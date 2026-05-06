@@ -29,16 +29,12 @@ const Index = () => {
     <div className="min-h-screen bg-background paper-grain">
       {/* Mac titlebar */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b">
-        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className="traffic-dot bg-[#ff5f57]" />
-            <span className="traffic-dot bg-[#febc2e]" />
-            <span className="traffic-dot bg-[#28c840]" />
-          </div>
-          <div className="flex-1 flex items-center justify-center gap-2">
-            <Logo size={22} />
+        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Logo size={22} animate />
             <span className="font-serif-display text-lg">Snip Talk</span>
           </div>
+          <div className="flex-1" />
           <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>
             Sign out
           </Button>
