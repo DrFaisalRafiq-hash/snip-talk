@@ -23,6 +23,25 @@ PKG_DIR="$OUT_DIR/${APP_NAME}-darwin-${ARCH}"
 APP_PATH="$PKG_DIR/${APP_NAME}.app"
 ENTITLEMENTS="build/entitlements.mac.plist"
 
+# ---- Version stamp: <version>+<build>.<sha> ----
+# BUILD_NUMBER: prefer CI-provided, else commit count, else timestamp.
+# GIT_SHA: short commit hash, or "nogit" when not in a git checkout.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  GIT_SHA="$(git rev-parse --short=8 HEAD)"
+  GIT_DIRTY=""
+  if ! git diff --quiet HEAD -- 2>/dev/null; then GIT_DIRTY="-dirty"; fi
+  DEFAULT_BUILD="$(git rev-list --count HEAD)"
+else
+  GIT_SHA="nogit"
+  GIT_DIRTY=""
+  DEFAULT_BUILD="$(date -u +%Y%m%d%H%M)"
+fi
+BUILD_NUMBER="${BUILD_NUMBER:-$DEFAULT_BUILD}"
+VERSION_STAMP="${APP_VERSION}+${BUILD_NUMBER}.${GIT_SHA}${GIT_DIRTY}"
+ARTIFACT_BASE="${APP_NAME// /-}-${VERSION_STAMP}-darwin-${ARCH}"
+echo "▸ version stamp: $VERSION_STAMP"
+
+
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "error: this script must run on macOS (hdiutil/codesign required)." >&2
   exit 1
