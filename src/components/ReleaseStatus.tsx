@@ -1,7 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, CheckCircle2, AlertCircle, ExternalLink, Loader2 } from "lucide-react";
-import { isMacAsset } from "@/lib/mac-asset";
+import { RefreshCw, CheckCircle2, AlertCircle, ExternalLink, Loader2, Download, Package } from "lucide-react";
+import {
+  isMacAsset,
+  pickBest,
+  pickOsFallback,
+  getInstallerKind,
+  getInstallInstructions,
+  type Arch,
+  type InstallerKind,
+} from "@/lib/mac-asset";
 
 const GITHUB_REPO = "DrFaisalRafiq-hash/snip-talk";
 
