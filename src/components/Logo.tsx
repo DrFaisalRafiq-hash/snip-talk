@@ -4,7 +4,7 @@ export function Logo({ size = 40, animate = false }: { size?: number; animate?: 
   const gap = size * 0.08;
   return (
     <div
-      className="inline-flex items-end justify-center"
+      className="inline-flex items-center justify-center align-middle"
       style={{ width: size, height: size, gap }}
       aria-label="Snip Talk logo"
     >
