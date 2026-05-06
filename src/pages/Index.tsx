@@ -67,9 +67,6 @@ const Index = () => {
 
         {tab === "dictate" ? <Dictation /> : <Snippets userId={session.user.id} />}
 
-        <footer className="mt-12 text-center text-xs text-muted-foreground font-mono-tight uppercase tracking-widest">
-          Installable as a Mac app · PWA · Electron-ready
-        </footer>
       </main>
     </div>
   );
