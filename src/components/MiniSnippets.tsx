@@ -63,6 +63,8 @@ export function setMiniMode(enabled: boolean) {
   }
 }
 
+type MiniTab = "snippets" | "dictate" | "history" | "rewrite";
+
 export function MiniSnippets({
   userId,
   onExit,
@@ -70,6 +72,7 @@ export function MiniSnippets({
   userId: string;
   onExit: () => void;
 }) {
+  const [tab, setTab] = useState<MiniTab>("snippets");
   const [items, setItems] = useState<Snippet[]>([]);
   const [filter, setFilter] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
