@@ -19,8 +19,8 @@ import { ShortcutEditor } from "@/components/ShortcutEditor";
 type DictationCommand = {
   /** Bumped each time the deep link arrives so effects re-run on repeats. */
   nonce: number;
-  /** "live" -> auto-start listening, "stop" -> auto-stop. */
-  mode?: "live" | "stop";
+  /** "live" -> auto-start, "stop" -> auto-stop, "toggle" -> flip current state. */
+  mode?: "live" | "stop" | "toggle";
   /** "copy" -> copy current transcript, "clear" -> wipe transcript. */
   action?: "copy" | "clear";
 };
