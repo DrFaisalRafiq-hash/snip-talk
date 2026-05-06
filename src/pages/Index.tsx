@@ -16,16 +16,30 @@ const Index = () => {
   const { session, loading } = useSession();
   const [tab, setTab] = useState<Tab>("dictate");
   const [dictatePrefill, setDictatePrefill] = useState<string | undefined>(undefined);
+  const [dictateCommand, setDictateCommand] = useState<{
+    nonce: number;
+    mode?: "live" | "stop";
+    action?: "copy" | "clear";
+  }>({ nonce: 0 });
 
   useDeepLink(
     useCallback((link) => {
       if (link.target === "dictate") {
         const text = link.params.get("text");
-        // Force a new reference even when the same text arrives twice in a row
         if (text) setDictatePrefill(text);
+        const rawMode = link.params.get("mode")?.toLowerCase();
+        const rawAction = link.params.get("action")?.toLowerCase();
+        const mode = rawMode === "live" || rawMode === "stop" ? rawMode : undefined;
+        const action =
+          rawAction === "copy" || rawAction === "clear" ? rawAction : undefined;
+        if (mode || action) {
+          setDictateCommand((c) => ({ nonce: c.nonce + 1, mode, action }));
+        }
         setTab("dictate");
       } else if (link.target === "snippets") {
         setTab("snippets");
+      } else if (link.target === "history") {
+        setTab("history");
       }
     }, [])
   );
@@ -96,7 +110,13 @@ const Index = () => {
           ))}
         </div>
 
-        {tab === "dictate" && <Dictation userId={session.user.id} prefill={dictatePrefill} />}
+        {tab === "dictate" && (
+          <Dictation
+            userId={session.user.id}
+            prefill={dictatePrefill}
+            command={dictateCommand}
+          />
+        )}
         {tab === "snippets" && <Snippets userId={session.user.id} />}
         {tab === "history" && <ClipboardHistory userId={session.user.id} />}
 
