@@ -18,14 +18,16 @@ type BuildInfo = {
   source: "electron" | "vite-env" | "package";
 };
 
-declare global {
-  interface Window {
-    sniptalk?: { buildInfo?: Partial<BuildInfo> };
-  }
-}
+// Note: window.sniptalk is declared in src/hooks/useDeepLink.ts; we just
+// read an optional `buildInfo` field via a loose cast to avoid duplicating
+// the global declaration here.
 
 export function getBuildInfo(): BuildInfo {
-  const fromElectron = typeof window !== "undefined" ? window.sniptalk?.buildInfo : undefined;
+  const fromElectron =
+    typeof window !== "undefined"
+      ? ((window as unknown as { sniptalk?: { buildInfo?: Partial<BuildInfo> } }).sniptalk
+          ?.buildInfo as Partial<BuildInfo> | undefined)
+      : undefined;
   if (fromElectron && fromElectron.version) {
     return { ...fromElectron, source: "electron" } as BuildInfo;
   }
