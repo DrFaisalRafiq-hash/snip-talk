@@ -9,6 +9,7 @@ import { DeepLinkSharer } from "@/components/DeepLinkSharer";
 import { GlobalShortcutEditor } from "@/components/GlobalShortcutEditor";
 import { MicrophoneStatus } from "@/components/MicrophoneStatus";
 import { VersionBadge } from "@/components/VersionBadge";
+import { MacDownload } from "@/components/MacDownload";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -106,6 +107,7 @@ const Index = () => {
           </div>
           <div className="flex-1" />
           <MicrophoneStatus />
+          <MacDownload />
           <DeepLinkSharer />
           <Button
             variant="ghost"
