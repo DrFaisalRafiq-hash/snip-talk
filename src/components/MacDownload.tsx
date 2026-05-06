@@ -191,6 +191,9 @@ async function fetchStaticFallback(): Promise<Asset | null> {
 }
 
 export function MacDownload() {
+  // We still prefetch on mount so the tooltip can show the resolved filename,
+  // but the click handler ALWAYS re-fetches to guarantee the user gets the
+  // newest release (CI may have published a new build since page load).
   const [asset, setAsset] = useState<Asset | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -212,15 +215,12 @@ export function MacDownload() {
   const validateAsset = (a: Asset): { ok: true } | { ok: false; reason: string } => {
     const name = (a.name ?? "").toLowerCase();
     if (!name) return { ok: false, reason: "Asset has no filename." };
-    // Reject sidecar/signature/checksum/manifest files outright.
     if (/\.(sig|asc|pem|sha256|sha512|shasums?|md5|json|txt|yml|yaml|xml)$/.test(name)) {
       return { ok: false, reason: `${a.name} is a signature/checksum file, not an installer.` };
     }
-    // Must be a recognized macOS installer extension.
     if (!/\.(dmg|zip)$/.test(name)) {
       return { ok: false, reason: `${a.name} isn't a .dmg or .zip installer.` };
     }
-    // Size sanity (only when the API gave us a number): 1 MB – 2 GB.
     if (typeof a.size === "number") {
       const MIN = 1 * 1024 * 1024;
       const MAX = 2 * 1024 * 1024 * 1024;
@@ -230,61 +230,95 @@ export function MacDownload() {
     return { ok: true };
   };
 
+  const openReleasesPage = () => {
+    window.open(`https://github.com/${GITHUB_REPO}/releases`, "_blank", "noopener");
+  };
+
+  // Stream the asset into a Blob so we can trigger the browser's download
+  // pipeline with a real filename + correct MIME type. macOS Safari/Chrome
+  // will then offer "Open with DiskImageMounter" (.dmg) or auto-unzip (.zip),
+  // which is the closest a web page can get to "launching" an installer.
+  const downloadAsBlob = async (a: Asset): Promise<boolean> => {
+    try {
+      const res = await fetch(a.url, { mode: "cors", credentials: "omit" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const mime = a.name.toLowerCase().endsWith(".dmg")
+        ? "application/x-apple-diskimage"
+        : "application/zip";
+      const buf = await res.arrayBuffer();
+      const blob = new Blob([buf], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = a.name;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Anchor-click fallback: relies on GitHub's `Content-Disposition: attachment`
+  // header. Works even when CORS blocks the fetch above.
+  const downloadViaAnchor = (a: Asset) => {
+    const link = document.createElement("a");
+    link.href = a.url;
+    link.download = a.name;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
   const download = async () => {
-    if (!asset) {
-      const releasesUrl = `https://github.com/${GITHUB_REPO}/releases`;
-      window.open(releasesUrl, "_blank", "noopener");
-      toast.message("No macOS installer detected", {
-        description:
-          "We couldn't find a matching .dmg or .zip on the latest release. Opening the GitHub releases page so you can pick a build manually.",
-        action: {
-          label: "Open releases",
-          onClick: () => window.open(releasesUrl, "_blank", "noopener"),
-        },
-        duration: 8000,
-      });
-      return;
-    }
-    const check = validateAsset(asset);
-    if (check.ok === false) {
-      const releasesUrl = `https://github.com/${GITHUB_REPO}/releases`;
-      toast.error("Installer failed validation", {
-        description: `${check.reason} Opening releases so you can pick a build manually.`,
-        action: {
-          label: "Open releases",
-          onClick: () => window.open(releasesUrl, "_blank", "noopener"),
-        },
-        duration: 8000,
-      });
-      return;
-    }
     setBusy(true);
     try {
-      // In-page download — no new tab, no GitHub redirect visible to the user.
-      // GitHub release asset URLs respond with Content-Disposition: attachment,
-      // so navigating to them via a hidden <a download> triggers the browser's
-      // native download flow without leaving the page.
-      const a = document.createElement("a");
-      a.href = asset.url;
-      a.download = asset.name;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      // ALWAYS re-resolve the latest release at click time so we never serve a
+      // stale asset that was current when the page first loaded.
+      const fresh = (await fetchLatestMacAsset()) ?? asset ?? (await fetchStaticFallback());
 
-      toast.success(`Downloading ${asset.name}${asset.tag ? ` (${asset.tag})` : ""}`, {
-        description:
-          "When it finishes, open the .dmg from your Downloads, then drag Snip Talk into Applications.",
-        duration: 9000,
-      });
+      if (!fresh) {
+        openReleasesPage();
+        toast.message("No macOS installer detected", {
+          description:
+            "We couldn't find a matching .dmg or .zip on the latest release. Opening the GitHub releases page so you can pick a build manually.",
+          action: { label: "Open releases", onClick: openReleasesPage },
+          duration: 8000,
+        });
+        return;
+      }
+
+      setAsset(fresh);
+
+      const check = validateAsset(fresh);
+      if (check.ok === false) {
+        toast.error("Installer failed validation", {
+          description: `${check.reason} Opening releases so you can pick a build manually.`,
+          action: { label: "Open releases", onClick: openReleasesPage },
+          duration: 8000,
+        });
+        return;
+      }
+
+      const isDmg = fresh.name.toLowerCase().endsWith(".dmg");
+      const ok = (await downloadAsBlob(fresh)) || (downloadViaAnchor(fresh), true);
+
+      if (ok) {
+        toast.success(`Downloading ${fresh.name}${fresh.tag ? ` (${fresh.tag})` : ""}`, {
+          description: isDmg
+            ? "When it finishes, open the .dmg from Downloads and drag Snip Talk into Applications."
+            : "When it finishes, unzip it and drag Snip Talk.app into Applications.",
+          duration: 9000,
+        });
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Download failed", {
         description: "You can still grab a build manually from GitHub releases.",
-        action: {
-          label: "Open releases",
-          onClick: () =>
-            window.open(`https://github.com/${GITHUB_REPO}/releases`, "_blank", "noopener"),
-        },
+        action: { label: "Open releases", onClick: openReleasesPage },
       });
     } finally {
       setBusy(false);
