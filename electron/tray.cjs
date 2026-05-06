@@ -15,9 +15,11 @@ const {
   session,
   globalShortcut,
   ipcMain,
+  clipboard,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { execFile } = require("child_process");
 
 const SETTINGS_PATH = path.join(app.getPath("userData"), "tray-settings.json");
 const DEFAULT_ACCELERATOR = "CommandOrControl+Shift+D";
