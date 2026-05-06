@@ -90,7 +90,14 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        # Workaround for npm/cli#4828: npm ci skips optional native deps when
+        # the lockfile was generated on a different OS. Force-install the
+        # rollup darwin binaries we need for Vite's build step.
+        run: |
+          npm ci
+          npm install --no-save \
+            @rollup/rollup-darwin-arm64 \
+            @rollup/rollup-darwin-x64
 
       - name: Import Developer ID certificate
         if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
