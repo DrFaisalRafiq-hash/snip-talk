@@ -87,7 +87,14 @@ export function Snippets({ userId }: { userId: string }) {
                 active?.id === s.id ? "bg-secondary" : "hover:bg-secondary/50"
               }`}
             >
-              <div className="text-sm font-medium truncate">{s.title || "Untitled"}</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-medium truncate">{s.title || "Untitled"}</div>
+                {s.shortcut && (
+                  <span className="shrink-0 rounded border bg-background/60 px-1.5 py-0.5 font-mono-tight text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {formatAccelerator(s.shortcut)}
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-muted-foreground truncate mt-0.5">
                 {s.content || "Empty"}
               </div>
