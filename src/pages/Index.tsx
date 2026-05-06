@@ -91,9 +91,6 @@ const Index = () => {
           <h1 className="font-serif-display text-5xl md:text-6xl tracking-tight">
             Speak it. Save it. Reuse it.
           </h1>
-          <p className="text-muted-foreground mt-3 max-w-xl">
-            Live dictation powered by ElevenLabs with a tidy library of text snippets that sync to every device.
-          </p>
         </div>
 
         <div className="inline-flex bg-card border rounded-full p-1 mb-6">
