@@ -13,8 +13,33 @@ const {
   systemPreferences,
   screen,
   session,
+  globalShortcut,
+  ipcMain,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
+
+const SETTINGS_PATH = path.join(app.getPath("userData"), "tray-settings.json");
+const DEFAULT_ACCELERATOR = "CommandOrControl+Shift+D";
+
+function readSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf8"));
+  } catch {
+    return {};
+  }
+}
+function writeSettings(patch) {
+  const next = { ...readSettings(), ...patch };
+  try {
+    fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
+    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(next));
+  } catch {}
+  return next;
+}
+function getAccelerator() {
+  return readSettings().toggleAccelerator || DEFAULT_ACCELERATOR;
+}
 
 app.setName("Snip Talk");
 if (process.platform === "darwin") {
