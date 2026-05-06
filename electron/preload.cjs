@@ -23,6 +23,10 @@ try {
 contextBridge.exposeInMainWorld("sniptalk", {
   /** Static build metadata: { version, build, commit, stamp, builtAt, ... } */
   buildInfo,
+  /** Open the native About panel (macOS) and return current build info. */
+  showAbout() {
+    return ipcRenderer.invoke("app:show-about");
+  },
   /**
    * Subscribe to deep-link URLs (sniptalk://...) opened from the OS.
    * Returns an unsubscribe function.
