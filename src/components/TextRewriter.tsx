@@ -107,7 +107,7 @@ export function TextRewriter({
   // Cleanly disconnect if the component unmounts mid-dictation.
   useEffect(() => {
     return () => {
-      if (scribe.isConnected) scribe.disconnect().catch(() => {});
+      if (scribe.isConnected) { try { scribe.disconnect(); } catch {} }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
