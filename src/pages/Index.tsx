@@ -1,4 +1,5 @@
 import { useSession } from "@/hooks/useSession";
+import { Logo } from "@/components/Logo";
 import Auth from "./Auth";
 import { Dictation } from "@/components/Dictation";
 import { Snippets } from "@/components/Snippets";
@@ -25,7 +26,8 @@ const Index = () => {
             <span className="traffic-dot bg-[#febc2e]" />
             <span className="traffic-dot bg-[#28c840]" />
           </div>
-          <div className="flex-1 text-center">
+          <div className="flex-1 flex items-center justify-center gap-2">
+            <Logo size={22} />
             <span className="font-serif-display text-lg">Scribe</span>
           </div>
           <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>
