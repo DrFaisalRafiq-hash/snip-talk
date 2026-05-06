@@ -260,19 +260,23 @@ export function MacDownload() {
     }
     setBusy(true);
     try {
-      if (asset.url.startsWith("http")) {
-        window.open(asset.url, "_blank", "noopener");
-        toast.success(`Downloading ${asset.name}${asset.tag ? ` (${asset.tag})` : ""}`);
-      } else {
-        const res = await fetch(asset.url);
-        if (!res.ok) throw new Error(`Download failed (${res.status})`);
-        const blob = await res.blob();
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = asset.name;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      }
+      // In-page download — no new tab, no GitHub redirect visible to the user.
+      // GitHub release asset URLs respond with Content-Disposition: attachment,
+      // so navigating to them via a hidden <a download> triggers the browser's
+      // native download flow without leaving the page.
+      const a = document.createElement("a");
+      a.href = asset.url;
+      a.download = asset.name;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      toast.success(`Downloading ${asset.name}${asset.tag ? ` (${asset.tag})` : ""}`, {
+        description:
+          "When it finishes, open the .dmg from your Downloads, then drag Snip Talk into Applications.",
+        duration: 9000,
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Download failed", {
         description: "You can still grab a build manually from GitHub releases.",
