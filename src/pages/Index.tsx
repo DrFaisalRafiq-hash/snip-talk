@@ -111,6 +111,7 @@ const Index = () => {
     return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">…</div>;
   }
   if (!session) return <Auth />;
+  if (mini) return <MiniSnippets userId={session.user.id} onExit={exitMini} />;
 
   return (
     <div className="min-h-screen bg-background paper-grain">
