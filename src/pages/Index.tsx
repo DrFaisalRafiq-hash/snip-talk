@@ -4,13 +4,16 @@ import { Logo } from "@/components/Logo";
 import Auth from "./Auth";
 import { Dictation } from "@/components/Dictation";
 import { Snippets } from "@/components/Snippets";
+import { ClipboardHistory } from "@/components/ClipboardHistory";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useState } from "react";
 
+type Tab = "dictate" | "snippets" | "history";
+
 const Index = () => {
   const { session, loading } = useSession();
-  const [tab, setTab] = useState<"dictate" | "snippets">("dictate");
+  const [tab, setTab] = useState<Tab>("dictate");
 
   useDeepLink(
     useCallback((link) => {
@@ -72,7 +75,7 @@ const Index = () => {
         </div>
 
         <div className="inline-flex bg-card border rounded-full p-1 mb-6">
-          {(["dictate", "snippets"] as const).map((t) => (
+          {(["dictate", "snippets", "history"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -85,7 +88,9 @@ const Index = () => {
           ))}
         </div>
 
-        {tab === "dictate" ? <Dictation /> : <Snippets userId={session.user.id} />}
+        {tab === "dictate" && <Dictation userId={session.user.id} />}
+        {tab === "snippets" && <Snippets userId={session.user.id} />}
+        {tab === "history" && <ClipboardHistory userId={session.user.id} />}
 
       </main>
     </div>
