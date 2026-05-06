@@ -120,12 +120,18 @@ export function Snippets({ userId }: { userId: string }) {
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-            <Input
-              value={active.shortcut ?? ""}
-              onChange={(e) => save({ shortcut: e.target.value || null })}
-              placeholder="Shortcut e.g. /sig"
-              className="font-mono-tight text-xs max-w-xs"
-            />
+            <div className="flex items-center gap-3 -mt-2">
+              <span className="font-mono-tight text-[10px] uppercase tracking-widest text-muted-foreground">
+                Global shortcut
+              </span>
+              <AcceleratorRecorder
+                value={active.shortcut}
+                onChange={(next) => save({ shortcut: next })}
+              />
+              <span className="text-[11px] text-muted-foreground">
+                Triggers paste system-wide (macOS app required)
+              </span>
+            </div>
             <Textarea
               value={active.content}
               onChange={(e) => save({ content: e.target.value })}
