@@ -94,10 +94,10 @@ function createWindow() {
   });
 
   if (isDev) {
-    win.loadURL(`${process.env.ELECTRON_START_URL}?deeplink=sniptalk%3A%2F%2Fdictate`);
+    win.loadURL(`${process.env.ELECTRON_START_URL}?tray=1&deeplink=sniptalk%3A%2F%2Fdictate`);
   } else {
     win.loadFile(path.join(__dirname, "..", "dist", "index.html"), {
-      search: "deeplink=" + encodeURIComponent("sniptalk://dictate"),
+      search: "tray=1&deeplink=" + encodeURIComponent("sniptalk://dictate"),
     });
   }
 
