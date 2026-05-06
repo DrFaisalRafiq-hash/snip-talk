@@ -7,6 +7,7 @@ import { Snippets } from "@/components/Snippets";
 import { ClipboardHistory } from "@/components/ClipboardHistory";
 import { DeepLinkSharer } from "@/components/DeepLinkSharer";
 import { GlobalShortcutEditor } from "@/components/GlobalShortcutEditor";
+import { MicrophoneStatus } from "@/components/MicrophoneStatus";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
