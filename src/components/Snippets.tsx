@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Plus, Copy, Trash2 } from "lucide-react";
 import { recordClipboard } from "@/lib/clipboard";
+import { AcceleratorRecorder, formatAccelerator } from "@/components/AcceleratorRecorder";
 
 type Snippet = {
   id: string;
