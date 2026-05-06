@@ -116,6 +116,105 @@ jobs:
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "Stamped artifact base: $BASE"
 
+      - name: Verify artifacts (size, checksum, install smoke-test)
+        env:
+          ZIP: ${{ steps.artifacts.outputs.zip }}
+          DMG: ${{ steps.artifacts.outputs.dmg }}
+          JSON: ${{ steps.artifacts.outputs.json }}
+          BASE: ${{ steps.artifacts.outputs.base }}
+          # Reject builds whose installer is suspiciously tiny/huge — guards
+          # against empty .app bundles and accidental `node_modules` blowups.
+          MIN_BYTES: 20000000     # 20 MB
+          MAX_BYTES: 600000000    # 600 MB
+        run: |
+          set -euo pipefail
+
+          fail() { echo "::error::$*"; exit 1; }
+          ok()   { echo "✅ $*"; }
+
+          [[ -f "$ZIP"  ]] || fail "ZIP missing: $ZIP"
+          [[ -f "$DMG"  ]] || fail "DMG missing: $DMG"
+          [[ -f "$JSON" ]] || fail "manifest missing: $JSON"
+
+          # ---- Size sanity ----
+          for f in "$ZIP" "$DMG"; do
+            sz=$(stat -f%z "$f")
+            human=$(du -h "$f" | awk '{print $1}')
+            (( sz >= MIN_BYTES )) || fail "$f is too small ($human, ${sz}B)"
+            (( sz <= MAX_BYTES )) || fail "$f is too large ($human, ${sz}B)"
+            ok "size OK: $(basename "$f") = $human"
+          done
+
+          # ---- Checksum verification against the SHASUMS sidecar ----
+          SHASUMS="release/${BASE}.SHASUMS"
+          [[ -f "$SHASUMS" ]] || fail "missing $SHASUMS"
+          ( cd release && shasum -a 256 -c "$(basename "$SHASUMS")" ) \
+            || fail "checksum verification failed"
+          ok "sha256 verified for all artifacts"
+
+          # Cross-check that the manifest's recorded sha matches what we computed.
+          for key in zip dmg; do
+            file=$(jq -r ".artifacts.${key}.file"   "$JSON")
+            want=$(jq -r ".artifacts.${key}.sha256" "$JSON")
+            got=$(shasum -a 256 "release/${file}" | awk '{print $1}')
+            [[ "$want" == "$got" ]] || fail "manifest sha mismatch for ${key}: want=$want got=$got"
+            ok "manifest sha matches for ${file}"
+          done
+
+          # ---- Install smoke-test: mount DMG, copy .app, launch, kill ----
+          MOUNT="$RUNNER_TEMP/dmg-mount"
+          rm -rf "$MOUNT" && mkdir -p "$MOUNT"
+          hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet \
+            || fail "hdiutil attach failed"
+          trap 'hdiutil detach "$MOUNT" -quiet || true' EXIT
+
+          APP=$(ls -d "$MOUNT"/*.app | head -n1)
+          [[ -d "$APP" ]] || fail "no .app inside DMG"
+          ok "DMG mounted, found $(basename "$APP")"
+
+          # Verify codesign (allow unsigned only when no APPLE_IDENTITY was set).
+          if [[ -n "${APPLE_IDENTITY:-}" ]]; then
+            codesign --verify --deep --strict --verbose=2 "$APP" \
+              || fail "codesign verification failed"
+            ok "codesign verified"
+            spctl --assess --type execute --verbose=2 "$APP" \
+              || echo "::warning::spctl assessment failed (notarization may be pending)"
+            xcrun stapler validate "$APP" \
+              && ok "staple ticket valid" \
+              || echo "::warning::no valid staple ticket on .app"
+          else
+            echo "::warning::APPLE_IDENTITY not set — skipping codesign/spctl checks"
+          fi
+
+          # Copy out, launch headlessly, confirm process starts, then kill.
+          STAGE="$RUNNER_TEMP/installed"
+          mkdir -p "$STAGE"
+          cp -R "$APP" "$STAGE/"
+          INSTALLED="$STAGE/$(basename "$APP")"
+          ok "copied to $INSTALLED"
+
+          # Don't actually let the GUI open windows on the runner; -j returns
+          # immediately after launching, then we kill by bundle id.
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INSTALLED/Contents/Info.plist")
+          echo "Launching $BUNDLE_ID for smoke test…"
+          open -j -g -a "$INSTALLED" || fail "open failed"
+          sleep 4
+          if pgrep -f "$INSTALLED/Contents/MacOS/" >/dev/null; then
+            ok "process is running"
+            pkill -f "$INSTALLED/Contents/MacOS/" || true
+          else
+            fail "app did not start (no process matched $INSTALLED)"
+          fi
+
+          # Confirm the launched binary's version metadata matches the manifest.
+          PLIST_VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INSTALLED/Contents/Info.plist")
+          MAN_VER=$(jq -r '.version' "$JSON")
+          [[ "$PLIST_VER" == "$MAN_VER" ]] || fail "version mismatch: plist=$PLIST_VER manifest=$MAN_VER"
+          ok "version stamp matches: $PLIST_VER"
+
+          echo
+          echo "🎉 all artifact verifications passed for $BASE"
+
       - name: Upload workflow artifacts (stamped filenames)
         uses: actions/upload-artifact@v4
         with:
