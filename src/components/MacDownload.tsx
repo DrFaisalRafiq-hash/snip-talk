@@ -111,7 +111,7 @@ export function MacDownload() {
       variant="ghost"
       size="icon"
       onClick={download}
-      disabled={loading || busy}
+      disabled={busy}
       title={asset ? `Download Snip Talk for macOS${asset.tag ? ` (${asset.tag})` : ""}` : "Download for macOS"}
       aria-label="Download for macOS"
     >
