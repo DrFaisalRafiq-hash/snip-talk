@@ -115,10 +115,8 @@ export function MicrophoneStatus({ className = "" }: { className?: string }) {
       </div>
 
       {showRequestButton && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={requestPermission}
+        <Button variant="outline" size="sm" onClick={requestPermission}>
+          {status === "denied" ? "Try again" : "Request permission"}
         </Button>
       )}
 
