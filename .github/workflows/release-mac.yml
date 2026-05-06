@@ -92,10 +92,17 @@ jobs:
       - name: Install dependencies
         # Workaround for npm/cli#4828: npm ci skips optional native deps when
         # the lockfile was generated on a different OS. Force-install the
-        # rollup darwin binary matching the runner's CPU (arm64 on macos-14+).
+        # rollup darwin binary matching the runner's CPU so npm never trips
+        # EBADPLATFORM trying to install the wrong-arch package.
         run: |
           npm ci
-          npm install --no-save @rollup/rollup-darwin-arm64
+          case "$(uname -m)" in
+            arm64|aarch64) ROLLUP_PKG="@rollup/rollup-darwin-arm64" ;;
+            x86_64)        ROLLUP_PKG="@rollup/rollup-darwin-x64" ;;
+            *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
+          esac
+          echo "Installing $ROLLUP_PKG for $(uname -m)"
+          npm install --no-save "$ROLLUP_PKG"
 
       - name: Import Developer ID certificate
         if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
