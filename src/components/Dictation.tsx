@@ -185,6 +185,7 @@ export function Dictation({
   const denyInfo = micDeniedMessage();
 
   return (
+    <>
     <div className="bg-card border rounded-2xl p-8 shadow-[var(--shadow-paper)]">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
