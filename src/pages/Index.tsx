@@ -1,15 +1,24 @@
 import { useSession } from "@/hooks/useSession";
+import { useDeepLink } from "@/hooks/useDeepLink";
 import { Logo } from "@/components/Logo";
 import Auth from "./Auth";
 import { Dictation } from "@/components/Dictation";
 import { Snippets } from "@/components/Snippets";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 const Index = () => {
   const { session, loading } = useSession();
   const [tab, setTab] = useState<"dictate" | "snippets">("dictate");
+
+  useDeepLink(
+    useCallback((link) => {
+      if (link.target === "dictate" || link.target === "snippets") {
+        setTab(link.target);
+      }
+    }, [])
+  );
 
   if (loading) {
     return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">…</div>;
