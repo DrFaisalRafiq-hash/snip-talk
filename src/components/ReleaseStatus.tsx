@@ -235,29 +235,35 @@ export function ReleaseStatus() {
               </div>
             </div>
           ) : (
-            <ul className="divide-y border rounded-lg overflow-hidden">
-              {state.release.macAssets.map((a) => (
-                <li
-                  key={a.name}
-                  className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/40"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                  <span className="font-mono-tight truncate flex-1" title={a.name}>
-                    {a.name}
-                  </span>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {formatBytes(a.size)}
-                  </span>
-                  <a
-                    href={a.browser_download_url}
-                    download={a.name}
-                    rel="noopener"
-                    className="text-xs text-primary hover:underline shrink-0"
-                  >
-                    Download
-                  </a>
-                </li>
-              ))}
+            <>
+              <RecommendedInstaller assets={state.release.macAssets} />
+              <ul className="divide-y border rounded-lg overflow-hidden mt-4">
+                {state.release.macAssets.map((a) => {
+                  const kind = getInstallerKind(a.name);
+                  return (
+                    <li
+                      key={a.name}
+                      className="flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/40"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      <span className="font-mono-tight truncate flex-1" title={a.name}>
+                        {a.name}
+                      </span>
+                      <FormatBadge kind={kind} />
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {formatBytes(a.size)}
+                      </span>
+                      <a
+                        href={a.browser_download_url}
+                        download={a.name}
+                        rel="noopener"
+                        className="text-xs text-primary hover:underline shrink-0"
+                      >
+                        Download
+                      </a>
+                    </li>
+                  );
+                })}
             </ul>
           )}
         </>
