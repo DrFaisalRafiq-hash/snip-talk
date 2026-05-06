@@ -42,7 +42,7 @@ export default function Auth() {
       <div className="w-full max-w-md">
         <div className="mb-10 text-center flex flex-col items-center">
           <Logo size={88} animate />
-          <h1 className="font-serif-display text-6xl tracking-tight mt-4">Scribe</h1>
+          <h1 className="font-serif-display text-6xl tracking-tight mt-4">Snip Talk</h1>
           <p className="text-muted-foreground mt-2 font-mono-tight text-xs uppercase tracking-widest">
             Dictate · Capture · Reuse
           </p>

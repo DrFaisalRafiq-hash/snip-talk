@@ -1,32 +1,29 @@
-import logo from "@/assets/logo.png";
-
 export function Logo({ size = 40, animate = false }: { size?: number; animate?: boolean }) {
+  // Three dots equalizer — turn on/off in red, like a stereo VU meter
+  const dot = size * 0.28;
+  const gap = size * 0.08;
   return (
     <div
-      className="relative inline-flex items-center justify-center"
-      style={{ width: size, height: size }}
+      className="inline-flex items-end justify-center"
+      style={{ width: size, height: size, gap }}
+      aria-label="Snip Talk logo"
     >
-      {animate && (
-        <>
-          <span
-            className="absolute inset-0 rounded-full border border-foreground/40 animate-ping"
-            style={{ animationDuration: "2s" }}
-          />
-          <span
-            className="absolute inset-1 rounded-full border border-foreground/30 animate-ping"
-            style={{ animationDuration: "2.6s", animationDelay: "0.4s" }}
-          />
-        </>
-      )}
-      <img
-        src={logo}
-        alt="Scribe logo"
-        width={size}
-        height={size}
-        loading="lazy"
-        className="relative z-10 object-contain"
-        style={{ width: size, height: size }}
-      />
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className={animate ? "eq-dot" : ""}
+          style={{
+            width: dot,
+            height: dot,
+            borderRadius: "999px",
+            background: "hsl(var(--signal))",
+            display: "inline-block",
+            opacity: animate ? undefined : 1,
+            animationDelay: animate ? `${i * 0.18}s` : undefined,
+            boxShadow: "0 0 0 1px hsl(0 0% 0% / 0.08)",
+          }}
+        />
+      ))}
     </div>
   );
 }
