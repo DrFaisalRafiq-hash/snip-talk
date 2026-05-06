@@ -47,8 +47,28 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
+echo "▸ writing build-info.json"
+mkdir -p build
+cat > build/build-info.json <<JSON
+{
+  "version": "$APP_VERSION",
+  "build": "$BUILD_NUMBER",
+  "commit": "$GIT_SHA",
+  "dirty": $([[ -n "$GIT_DIRTY" ]] && echo true || echo false),
+  "stamp": "$VERSION_STAMP",
+  "arch": "$ARCH",
+  "platform": "darwin",
+  "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+JSON
+
 echo "▸ building Vite bundle"
-npx vite build
+# Expose the stamp to the renderer (window title, About dialog, etc.)
+VITE_APP_VERSION="$APP_VERSION" \
+VITE_APP_BUILD="$BUILD_NUMBER" \
+VITE_APP_COMMIT="$GIT_SHA" \
+VITE_APP_VERSION_STAMP="$VERSION_STAMP" \
+  npx vite build
 
 echo "▸ packaging .app for darwin/${ARCH}"
 rm -rf "$PKG_DIR"
@@ -59,9 +79,36 @@ npx @electron/packager . "$APP_NAME" \
   --app-bundle-id="$BUNDLE_ID" \
   --app-category-type=public.app-category.productivity \
   --app-version="$APP_VERSION" \
+  --build-version="$BUILD_NUMBER" \
+  --app-copyright="© $(date +%Y) Snip Talk" \
   --extend-info="build/Info.plist.extend.plist" \
   --prune=true \
   --ignore="^/(src|public|electron|supabase|release|node_modules/.cache)"
+
+# ---- Stamp the bundle's Info.plist with version metadata ----
+INFO_PLIST="$APP_PATH/Contents/Info.plist"
+if [[ -f "$INFO_PLIST" ]]; then
+  echo "▸ stamping Info.plist with build metadata"
+  PB=/usr/libexec/PlistBuddy
+  set_or_add() {
+    local key="$1" type="$2" value="$3"
+    "$PB" -c "Set :$key $value" "$INFO_PLIST" 2>/dev/null || \
+      "$PB" -c "Add :$key $type $value" "$INFO_PLIST"
+  }
+  set_or_add CFBundleShortVersionString string "$APP_VERSION"
+  set_or_add CFBundleVersion            string "$BUILD_NUMBER"
+  set_or_add CFBundleGetInfoString      string "$VERSION_STAMP, © $(date +%Y) Snip Talk"
+  set_or_add SnipTalkBuildStamp         string "$VERSION_STAMP"
+  set_or_add SnipTalkGitCommit          string "$GIT_SHA"
+  set_or_add SnipTalkBuildNumber        string "$BUILD_NUMBER"
+fi
+
+# Drop build-info.json into the .app Resources so the runtime can read it.
+RES_DIR="$APP_PATH/Contents/Resources"
+if [[ -d "$RES_DIR" ]]; then
+  cp build/build-info.json "$RES_DIR/build-info.json"
+fi
+
 
 # ---- Sign (Developer ID) ----
 if [[ -n "${APPLE_IDENTITY:-}" ]]; then

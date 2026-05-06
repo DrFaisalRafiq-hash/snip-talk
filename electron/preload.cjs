@@ -1,8 +1,28 @@
 // Preload runs in an isolated context with access to Node + the DOM.
 // We expose a tiny, typed surface to the renderer for deep-link events.
 const { contextBridge, ipcRenderer } = require("electron");
+const fs = require("fs");
+const path = require("path");
+
+// Read build-info.json (written by scripts/release-mac.sh into the .app
+// Resources). Falls back to an empty object during `electron:dev`.
+let buildInfo = {};
+try {
+  const candidates = [
+    path.join(process.resourcesPath || "", "build-info.json"),
+    path.join(__dirname, "..", "build", "build-info.json"),
+  ];
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) {
+      buildInfo = JSON.parse(fs.readFileSync(p, "utf8"));
+      break;
+    }
+  }
+} catch {}
 
 contextBridge.exposeInMainWorld("sniptalk", {
+  /** Static build metadata: { version, build, commit, stamp, builtAt, ... } */
+  buildInfo,
   /**
    * Subscribe to deep-link URLs (sniptalk://...) opened from the OS.
    * Returns an unsubscribe function.

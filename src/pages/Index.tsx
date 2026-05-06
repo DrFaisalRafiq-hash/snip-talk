@@ -8,6 +8,7 @@ import { ClipboardHistory } from "@/components/ClipboardHistory";
 import { DeepLinkSharer } from "@/components/DeepLinkSharer";
 import { GlobalShortcutEditor } from "@/components/GlobalShortcutEditor";
 import { MicrophoneStatus } from "@/components/MicrophoneStatus";
+import { VersionBadge } from "@/components/VersionBadge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -165,6 +166,10 @@ const Index = () => {
 
         <div className="mt-6">
           <GlobalShortcutEditor />
+        </div>
+
+        <div className="mt-8 flex justify-center">
+          <VersionBadge />
         </div>
 
       </main>
