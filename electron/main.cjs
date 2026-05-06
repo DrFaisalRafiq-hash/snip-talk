@@ -215,8 +215,11 @@ app.whenReady().then(async () => {
   });
 
   // ---- Permission gating: only allow what we actually need ----
+  // Auto-grant media (microphone) at the Electron layer so the renderer's
+  // getUserMedia() does NOT trigger a second in-app prompt. The macOS OS-level
+  // microphone prompt is handled separately, exactly once, below.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === "media"); // microphone only
+    callback(permission === "media");
   });
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
     return permission === "media";
@@ -243,22 +246,31 @@ app.whenReady().then(async () => {
     callback(okOrigin ? {} : { cancel: true });
   });
 
-  if (process.platform === "darwin") {
-    try {
-      const status = systemPreferences.getMediaAccessStatus("microphone");
-      if (status === "not-determined") {
-        await systemPreferences.askForMediaAccess("microphone");
-      }
-    } catch {
-      // ignore — renderer surfaces a friendly error if denied
-    }
-  }
   // Capture cold-start deep link from argv (Windows/Linux)
   const initial = extractDeepLink(process.argv);
   if (initial) pendingDeepLink = initial;
 
+  // Show UI immediately — never block window creation on the OS mic prompt.
   createSplashWindow();
   createWindow();
+
+  // ---- macOS microphone prompt: fire exactly once, AFTER the window exists ----
+  // We intentionally do NOT await this. askForMediaAccess() shows the system
+  // dialog only when status === "not-determined"; on subsequent launches the
+  // status is already "granted"/"denied"/"restricted" and no prompt appears.
+  if (process.platform === "darwin" && !global.__micPromptRequested) {
+    global.__micPromptRequested = true;
+    try {
+      const status = systemPreferences.getMediaAccessStatus("microphone");
+      if (status === "not-determined") {
+        systemPreferences.askForMediaAccess("microphone").catch(() => {
+          /* renderer surfaces a friendly error if denied */
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 });
 
 app.on("window-all-closed", () => {
