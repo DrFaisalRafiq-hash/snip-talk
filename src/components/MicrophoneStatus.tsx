@@ -119,9 +119,6 @@ export function MicrophoneStatus({ className = "" }: { className?: string }) {
           variant="outline"
           size="sm"
           onClick={requestPermission}
-          disabled={status === "checking"}
-        >
-          {status === "denied" ? "Try again" : "Request permission"}
         </Button>
       )}
 
