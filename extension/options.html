@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Snip Talk — Options</title>
+    <style>
+      :root {
+        --bg: #f5f3ee;
+        --fg: #1a1a1a;
+        --muted: #6b6b6b;
+        --border: #e3dfd5;
+        --signal: #e63946;
+        --card: #ffffff;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg); color: var(--fg);
+        padding: 32px 20px; min-height: 100vh;
+      }
+      .wrap { max-width: 560px; margin: 0 auto; }
+      .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+      .dots { display: inline-flex; gap: 4px; }
+      .dots span { width: 8px; height: 8px; border-radius: 999px; background: var(--signal); }
+      .title { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; }
+      .sub { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 20px; }
+      .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+      h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+      label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+      input[type="text"], select {
+        width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+        font-size: 13px; font-family: inherit; background: #fff;
+      }
+      input[type="text"].mono { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; }
+      .target-row {
+        display: grid; grid-template-columns: 24px 1fr 130px 60px;
+        gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--border);
+      }
+      .target-row:last-of-type { border-bottom: none; }
+      .target-row input[type="checkbox"] { width: 16px; height: 16px; }
+      .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+      button {
+        padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+        background: #fff; cursor: pointer; font-size: 13px; font-weight: 500;
+      }
+      button.primary { background: var(--fg); color: #fff; border-color: var(--fg); }
+      button:hover { transform: translateY(-1px); }
+      .status { font-size: 12px; color: var(--muted); margin-left: auto; align-self: center; }
+      .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="brand">
+        <span class="dots"><span></span><span></span><span></span></span>
+        <span class="title">Snip Talk</span>
+      </div>
+      <div class="sub">Extension options</div>
+
+      <div class="card">
+        <h2>Base URL</h2>
+        <label for="base-url">Where the popup buttons should open</label>
+        <input type="text" id="base-url" class="mono" placeholder="https://your-app.lovable.app" />
+        <div class="hint">Used as the prefix for all deep links (e.g. <code>?deeplink=sniptalk://dictate</code>).</div>
+      </div>
+
+      <div class="card">
+        <h2>Open targets in</h2>
+        <label for="open-mode">How links open from the popup</label>
+        <select id="open-mode">
+          <option value="new-tab">New tab</option>
+          <option value="current-tab">Current tab</option>
+          <option value="new-window">New window</option>
+          <option value="popup-window">Compact popup window</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <h2>Popup buttons</h2>
+        <div id="targets"></div>
+        <div class="hint">Toggle which deep-link buttons appear in the toolbar popup.</div>
+      </div>
+
+      <div class="actions">
+        <span class="status" id="status"></span>
+        <button id="reset">Reset to defaults</button>
+        <button class="primary" id="save">Save</button>
+      </div>
+    </div>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

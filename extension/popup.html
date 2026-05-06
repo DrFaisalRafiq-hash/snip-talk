@@ -20,12 +20,7 @@
         color: var(--fg);
         padding: 16px;
       }
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 14px;
-      }
+      .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
       .dots { display: inline-flex; gap: 4px; align-items: center; }
       .dots span {
         width: 8px; height: 8px; border-radius: 999px;
@@ -38,25 +33,20 @@
       .title { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
       .sub { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 12px; }
       .row {
-        display: block;
-        width: 100%;
-        text-align: left;
-        background: #fff;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 10px 12px;
-        margin-bottom: 8px;
-        font-size: 13px;
-        color: var(--fg);
-        cursor: pointer;
-        transition: transform .08s ease, background .12s ease;
+        display: block; width: 100%; text-align: left; background: #fff;
+        border: 1px solid var(--border); border-radius: 10px;
+        padding: 10px 12px; margin-bottom: 8px; font-size: 13px; color: var(--fg);
+        cursor: pointer; transition: transform .08s ease, background .12s ease;
       }
       .row:hover { background: #fffaf2; transform: translateY(-1px); }
       .row .k { font-size: 10px; color: var(--muted); float: right; font-family: ui-monospace, SFMono-Regular, monospace; }
-      .footer { margin-top: 10px; font-size: 10px; color: var(--muted); text-align: center; }
-      input.url {
-        width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px;
-        font-size: 11px; font-family: ui-monospace, SFMono-Regular, monospace; margin-top: 8px;
+      .footer {
+        margin-top: 10px; font-size: 10px; color: var(--muted);
+        text-align: center; display: flex; justify-content: space-between; align-items: center;
+      }
+      .footer button {
+        background: none; border: none; color: var(--muted); font-size: 10px;
+        cursor: pointer; padding: 0; text-decoration: underline; font-family: inherit;
       }
     </style>
   </head>
@@ -67,19 +57,13 @@
     </div>
     <div class="sub">Quick launcher</div>
 
-    <button class="row" data-target="dictate">
-      Start dictation <span class="k">⏎</span>
-    </button>
-    <button class="row" data-target="snippets">
-      Open snippets <span class="k">S</span>
-    </button>
-    <button class="row" id="open-app">
-      Open Snip Talk
-    </button>
+    <div id="rows"></div>
 
-    <input class="url" id="base-url" placeholder="https://your-app.lovable.app" />
-    <div class="footer">Set your published URL above (saved locally).</div>
+    <div class="footer">
+      <span id="base-display"></span>
+      <button id="open-options">Options</button>
+    </div>
 
-    <script src="popup.js"></script>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>
