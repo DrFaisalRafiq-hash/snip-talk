@@ -107,6 +107,15 @@ function createWindow() {
     if (!win.webContents.isDevToolsOpened()) win.hide();
   });
 
+  const persistPosition = () => {
+    if (!win || win.isDestroyed() || !win.isVisible()) return;
+    const [x, y] = win.getPosition();
+    const display = screen.getDisplayNearestPoint({ x, y });
+    savePopoverPosition(x, y, display.id);
+  };
+  win.on("moved", persistPosition);
+  win.on("move", persistPosition);
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) shell.openExternal(url);
     return { action: "deny" };
