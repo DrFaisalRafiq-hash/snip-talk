@@ -24,8 +24,8 @@ type ElectronBridge = {
 };
 
 const MINI_KEY = "sniptalk:miniMode";
-const MINI_W = 340;
-const MINI_H = 460;
+const MINI_W = 420;
+const MINI_H = 640;
 
 export function isMiniMode(): boolean {
   try {
