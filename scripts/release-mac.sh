@@ -230,15 +230,31 @@ echo "▸ DMG ready → $DMG_PATH"
 # Sign + notarize + staple the DMG itself for Gatekeeper
 if [[ -n "${APPLE_IDENTITY:-}" ]]; then
   codesign --force --sign "$APPLE_IDENTITY" --timestamp "$DMG_PATH"
-  if [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
+  codesign --verify --verbose=2 "$DMG_PATH"
+  if [[ "$NOTARIZE_REQUIRED" == "1" ]]; then
     if notarize_file "$DMG_PATH"; then
       xcrun stapler staple "$DMG_PATH"
-      xcrun stapler validate "$DMG_PATH" >> "$NOTARIZE_LOG" 2>&1 || true
+      xcrun stapler validate "$DMG_PATH" | tee -a "$NOTARIZE_LOG"
+      spctl --assess --type install --verbose=2 "$DMG_PATH" 2>&1 | tee -a "$NOTARIZE_LOG" || true
     else
       NOTARIZE_STATUS="failed"
-      echo "✖ DMG notarization failed — see $NOTARIZE_LOG" >&2
+      echo "::error::DMG notarization failed — see $NOTARIZE_LOG" >&2
+      exit 1
     fi
   fi
+fi
+
+# ---- Final verification: assert the build matches its claimed status ----
+if [[ "$NOTARIZE_REQUIRED" == "1" ]]; then
+  echo "▸ verifying notarization end-to-end"
+  [[ "$NOTARIZE_STATUS" == "accepted" ]] || { echo "::error::notarization not accepted (status=$NOTARIZE_STATUS)"; exit 1; }
+  [[ -n "$NOTARIZE_ZIP_ID" ]] || { echo "::error::missing ZIP submission id"; exit 1; }
+  [[ -n "$NOTARIZE_DMG_ID" ]] || { echo "::error::missing DMG submission id"; exit 1; }
+  [[ -s "$NOTARIZE_LOG"   ]] || { echo "::error::notarization log is empty: $NOTARIZE_LOG"; exit 1; }
+  xcrun stapler validate "$APP_PATH" >/dev/null || { echo "::error::.app staple ticket invalid"; exit 1; }
+  xcrun stapler validate "$DMG_PATH" >/dev/null || { echo "::error::DMG staple ticket invalid"; exit 1; }
+  spctl --assess --type execute --verbose=2 "$APP_PATH" >/dev/null 2>&1 || { echo "::error::spctl rejected .app"; exit 1; }
+  echo "✅ notarization verified (zip=$NOTARIZE_ZIP_ID dmg=$NOTARIZE_DMG_ID)"
 fi
 
 # ---- Detached signatures for the artifacts themselves ----
