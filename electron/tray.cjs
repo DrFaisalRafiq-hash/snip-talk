@@ -82,7 +82,7 @@ function createWindow() {
     frame: false,
     fullscreenable: false,
     resizable: false,
-    movable: false,
+    movable: true,
     skipTaskbar: true,
     alwaysOnTop: true,
     transparent: false,
@@ -107,6 +107,15 @@ function createWindow() {
     if (!win.webContents.isDevToolsOpened()) win.hide();
   });
 
+  const persistPosition = () => {
+    if (!win || win.isDestroyed() || !win.isVisible()) return;
+    const [x, y] = win.getPosition();
+    const display = screen.getDisplayNearestPoint({ x, y });
+    savePopoverPosition(x, y, display.id);
+  };
+  win.on("moved", persistPosition);
+  win.on("move", persistPosition);
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) shell.openExternal(url);
     return { action: "deny" };
@@ -117,12 +126,34 @@ function positionWindow() {
   const bounds = tray.getBounds();
   const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
   const workArea = display.workArea;
-  // Center horizontally under the tray icon, clamped to display
+
+  // Try to reuse the last saved position if it still fits on this display.
+  const saved = readSettings().popoverPosition;
+  if (
+    saved &&
+    typeof saved.x === "number" &&
+    typeof saved.y === "number" &&
+    saved.displayId === display.id &&
+    saved.x >= workArea.x &&
+    saved.y >= workArea.y &&
+    saved.x + WIN_W <= workArea.x + workArea.width &&
+    saved.y + WIN_H <= workArea.y + workArea.height
+  ) {
+    win.setBounds({ x: saved.x, y: saved.y, width: WIN_W, height: WIN_H });
+    return;
+  }
+
+  // Default: center horizontally under the tray icon, clamped to display
   let x = Math.round(bounds.x + bounds.width / 2 - WIN_W / 2);
   let y = Math.round(bounds.y + bounds.height + 4);
   x = Math.max(workArea.x + 8, Math.min(x, workArea.x + workArea.width - WIN_W - 8));
   y = Math.max(workArea.y + 8, y);
   win.setBounds({ x, y, width: WIN_W, height: WIN_H });
+  savePopoverPosition(x, y, display.id);
+}
+
+function savePopoverPosition(x, y, displayId) {
+  writeSettings({ popoverPosition: { x, y, displayId } });
 }
 
 function toggleWindow() {
