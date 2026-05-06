@@ -9,19 +9,59 @@ import { DeepLinkSharer } from "@/components/DeepLinkSharer";
 import { GlobalShortcutEditor } from "@/components/GlobalShortcutEditor";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Tab = "dictate" | "snippets" | "history";
 
+const VALID_TABS: Tab[] = ["dictate", "snippets", "history"];
+
+function tabFromHash(): Tab | null {
+  const h = window.location.hash.replace(/^#\/?/, "").toLowerCase();
+  return (VALID_TABS as string[]).includes(h) ? (h as Tab) : null;
+}
+
 const Index = () => {
   const { session, loading } = useSession();
-  const [tab, setTab] = useState<Tab>("dictate");
+  const [tab, setTabState] = useState<Tab>(() => tabFromHash() ?? "dictate");
   const [dictatePrefill, setDictatePrefill] = useState<string | undefined>(undefined);
   const [dictateCommand, setDictateCommand] = useState<{
     nonce: number;
     mode?: "live" | "stop" | "toggle";
     action?: "copy" | "clear";
   }>({ nonce: 0 });
+
+  // Keep tab + URL hash in sync so reloads land on the same tab.
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t);
+    if (tabFromHash() !== t) {
+      const url = `${window.location.pathname}${window.location.search}#${t}`;
+      window.history.replaceState(null, "", url);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onHash = () => {
+      const t = tabFromHash();
+      if (t) setTabState(t);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // Strip the one-shot ?deeplink= param after we consume it so a reload
+  // doesn't re-fire commands like mode=live.
+  const consumedQuery = useRef(false);
+  useEffect(() => {
+    if (consumedQuery.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("deeplink")) {
+      consumedQuery.current = true;
+      params.delete("deeplink");
+      const qs = params.toString();
+      const url = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`;
+      window.history.replaceState(null, "", url);
+    }
+  }, []);
 
   useDeepLink(
     useCallback((link) => {
@@ -45,7 +85,7 @@ const Index = () => {
       } else if (link.target === "history") {
         setTab("history");
       }
-    }, [])
+    }, [setTab])
   );
 
   if (loading) {

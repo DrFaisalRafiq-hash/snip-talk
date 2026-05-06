@@ -30,9 +30,10 @@ export function saveSettings(patch) {
 
 export function buildUrl(baseUrl, target) {
   const base = (baseUrl || DEFAULT_URL).trim().replace(/\/+$/, "");
-  return target
-    ? `${base}/?deeplink=${encodeURIComponent("sniptalk://" + target)}`
-    : base;
+  if (!target) return base;
+  // Include both ?deeplink= (one-shot, fires commands) and #target
+  // (persistent, survives reloads so the right tab stays selected).
+  return `${base}/?deeplink=${encodeURIComponent("sniptalk://" + target)}#${target}`;
 }
 
 export function openTarget(url, mode) {
