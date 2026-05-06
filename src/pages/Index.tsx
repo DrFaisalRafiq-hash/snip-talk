@@ -10,6 +10,8 @@ import { GlobalShortcutEditor } from "@/components/GlobalShortcutEditor";
 import { MicrophoneStatus } from "@/components/MicrophoneStatus";
 import { VersionBadge } from "@/components/VersionBadge";
 import { MacDownload } from "@/components/MacDownload";
+import { ChromeExtensionDownload } from "@/components/ChromeExtensionDownload";
+import { InstallIphoneButton } from "@/components/InstallIphoneButton";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -107,28 +109,12 @@ const Index = () => {
           </div>
           <div className="flex-1" />
           <MicrophoneStatus />
-          <MacDownload />
+          <div className="flex items-center gap-0.5 px-1 mx-1 border-l border-r">
+            <MacDownload />
+            <ChromeExtensionDownload />
+            <InstallIphoneButton />
+          </div>
           <DeepLinkSharer />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={async () => {
-              try {
-                const res = await fetch("/snip-talk-extension.zip");
-                if (!res.ok) throw new Error(`Download failed (${res.status})`);
-                const blob = await res.blob();
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(blob);
-                a.download = "snip-talk-extension.zip";
-                a.click();
-                URL.revokeObjectURL(a.href);
-              } catch (e) {
-                console.error(e);
-              }
-            }}
-          >
-            Chrome extension
-          </Button>
           <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>
             Sign out
           </Button>
