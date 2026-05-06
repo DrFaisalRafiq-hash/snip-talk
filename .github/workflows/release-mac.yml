@@ -130,6 +130,7 @@ jobs:
             release/${{ steps.artifacts.outputs.base }}.SHASUMS
             release/${{ steps.artifacts.outputs.base }}.zip.sig
             release/${{ steps.artifacts.outputs.base }}.dmg.sig
+            release/${{ steps.artifacts.outputs.base }}.notarization.log
           if-no-files-found: warn
           retention-days: 14
 
@@ -168,13 +169,24 @@ jobs:
             for j in dist/*.json; do
               [[ -e "$j" ]] || continue
               base="$(basename "${j%.json}")"
-              stamp="$(jq -r '.versionStamp // .version_stamp // .version // empty' "$j" 2>/dev/null || true)"
+              stamp="$(jq -r '.versionStamp // .version_stamp // .stamp // .version // empty' "$j" 2>/dev/null || true)"
               commit="$(jq -r '.gitSha // .git_sha // .commit // empty' "$j" 2>/dev/null || true)"
               built="$(jq -r '.builtAt // .built_at // empty'   "$j" 2>/dev/null || true)"
+              notar="$(jq -r '.notarization.status // "skipped"' "$j" 2>/dev/null || echo skipped)"
+              zip_id="$(jq -r '.notarization.zip_submission_id // empty' "$j" 2>/dev/null || true)"
+              dmg_id="$(jq -r '.notarization.dmg_submission_id // empty' "$j" 2>/dev/null || true)"
               echo "### \`$base\`"
               [[ -n "$stamp"  ]] && echo "- **Version stamp:** \`$stamp\`"
               [[ -n "$commit" ]] && echo "- **Commit:** \`$commit\`"
               [[ -n "$built"  ]] && echo "- **Built at:** $built"
+              case "$notar" in
+                accepted) echo "- **Notarization:** ✅ Accepted (Apple stapled)";;
+                failed)   echo "- **Notarization:** ❌ Failed — see \`${base}.notarization.log\`";;
+                skipped)  echo "- **Notarization:** ⚠️ Skipped (unsigned build)";;
+                *)        echo "- **Notarization:** $notar";;
+              esac
+              [[ -n "$zip_id" ]] && echo "- ZIP submission id: \`$zip_id\`"
+              [[ -n "$dmg_id" ]] && echo "- DMG submission id: \`$dmg_id\`"
               echo ""
             done
             echo "## SHA-256 checksums"
@@ -184,6 +196,12 @@ jobs:
             echo '```'
             echo ""
             echo "Verify with: \`shasum -a 256 -c <artifact>.SHASUMS\`"
+            echo ""
+            echo "Verify Apple notarization on a downloaded artifact:"
+            echo '```'
+            echo "spctl -a -vv -t install <artifact>.dmg"
+            echo "stapler validate <artifact>.dmg"
+            echo '```'
           } > "$NOTES"
           echo "path=$NOTES" >> "$GITHUB_OUTPUT"
           echo "----- Release notes -----"
@@ -207,3 +225,4 @@ jobs:
             dist/*.SHASUMS
             dist/*.json.sha256
             dist/*.sig
+            dist/*.notarization.log

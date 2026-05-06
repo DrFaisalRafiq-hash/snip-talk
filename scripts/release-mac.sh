@@ -102,19 +102,61 @@ echo "▸ zipping → $ZIP_PATH"
 rm -f "$ZIP_PATH"
 ( cd "$PKG_DIR" && /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${APP_NAME}.app" "../$ZIP_NAME" )
 
-# ---- Notarize (requires signed build + Apple credentials) ----
+# Notarization status, written into the manifest.
+NOTARIZE_STATUS="skipped"
+NOTARIZE_ZIP_ID=""
+NOTARIZE_DMG_ID=""
+NOTARIZE_LOG="$OUT_DIR/${ARTIFACT_BASE}.notarization.log"
+: > "$NOTARIZE_LOG"
+
+# Submit a file to notarytool, capture submission id, wait, fetch the log,
+# and return non-zero if the final status isn't "Accepted".
+notarize_file() {
+  local file="$1"
+  local label
+  label="$(basename "$file")"
+  echo "▸ notarizing $label"
+  local submit_out
+  submit_out="$(xcrun notarytool submit "$file" \
+      --apple-id "$APPLE_ID" \
+      --team-id "$APPLE_TEAM_ID" \
+      --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+      --wait --output-format json 2>&1)" || { echo "$submit_out" | tee -a "$NOTARIZE_LOG"; return 1; }
+  echo "$submit_out" | tee -a "$NOTARIZE_LOG" >/dev/null
+  local id status
+  id="$(echo "$submit_out" | /usr/bin/python3 -c "import json,sys;d=json.load(sys.stdin);print(d.get('id',''))" 2>/dev/null || true)"
+  status="$(echo "$submit_out" | /usr/bin/python3 -c "import json,sys;d=json.load(sys.stdin);print(d.get('status',''))" 2>/dev/null || true)"
+  echo "   submission id: $id  status: $status" | tee -a "$NOTARIZE_LOG"
+  if [[ -n "$id" ]]; then
+    {
+      echo "----- notarytool log: $label ($id) -----"
+      xcrun notarytool log "$id" \
+        --apple-id "$APPLE_ID" \
+        --team-id "$APPLE_TEAM_ID" \
+        --password "$APPLE_APP_SPECIFIC_PASSWORD" 2>&1 || true
+    } >> "$NOTARIZE_LOG"
+  fi
+  case "$label" in
+    *.zip) NOTARIZE_ZIP_ID="$id" ;;
+    *.dmg) NOTARIZE_DMG_ID="$id" ;;
+  esac
+  [[ "$status" == "Accepted" ]]
+}
+
+# ---- Notarize ZIP (requires signed build + Apple credentials) ----
 if [[ -n "${APPLE_IDENTITY:-}" && -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
-  echo "▸ notarizing"
-  xcrun notarytool submit "$ZIP_PATH" \
-    --apple-id "$APPLE_ID" \
-    --team-id "$APPLE_TEAM_ID" \
-    --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-    --wait
-  echo "▸ stapling"
-  xcrun stapler staple "$APP_PATH"
-  # re-zip so the staple ticket is included in the archive
-  rm -f "$ZIP_PATH"
-  ( cd "$PKG_DIR" && /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${APP_NAME}.app" "../$ZIP_NAME" )
+  if notarize_file "$ZIP_PATH"; then
+    echo "▸ stapling .app"
+    xcrun stapler staple "$APP_PATH"
+    xcrun stapler validate "$APP_PATH" >> "$NOTARIZE_LOG" 2>&1 || true
+    # re-zip so the staple ticket is included in the archive
+    rm -f "$ZIP_PATH"
+    ( cd "$PKG_DIR" && /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${APP_NAME}.app" "../$ZIP_NAME" )
+    NOTARIZE_STATUS="accepted"
+  else
+    NOTARIZE_STATUS="failed"
+    echo "✖ ZIP notarization failed — see $NOTARIZE_LOG" >&2
+  fi
 else
   echo "▸ skipping notarization (set APPLE_ID + APPLE_TEAM_ID + APPLE_APP_SPECIFIC_PASSWORD to enable)"
 fi
@@ -134,17 +176,17 @@ hdiutil create \
   -ov -format UDZO \
   "$DMG_PATH"
 
-# Sign + staple the DMG itself for Gatekeeper
+# Sign + notarize + staple the DMG itself for Gatekeeper
 if [[ -n "${APPLE_IDENTITY:-}" ]]; then
   codesign --force --sign "$APPLE_IDENTITY" --timestamp "$DMG_PATH"
   if [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
-    echo "▸ notarizing DMG"
-    xcrun notarytool submit "$DMG_PATH" \
-      --apple-id "$APPLE_ID" \
-      --team-id "$APPLE_TEAM_ID" \
-      --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-      --wait
-    xcrun stapler staple "$DMG_PATH"
+    if notarize_file "$DMG_PATH"; then
+      xcrun stapler staple "$DMG_PATH"
+      xcrun stapler validate "$DMG_PATH" >> "$NOTARIZE_LOG" 2>&1 || true
+    else
+      NOTARIZE_STATUS="failed"
+      echo "✖ DMG notarization failed — see $NOTARIZE_LOG" >&2
+    fi
   fi
 fi
 
@@ -153,6 +195,9 @@ fi
 # we emit detached .sig files for both so distributors can re-verify.
 sign_artifact_detached "$ZIP_PATH"
 sign_artifact_detached "$DMG_PATH"
+
+# Export notarization metadata for the manifest writer to consume.
+export NOTARIZE_STATUS NOTARIZE_ZIP_ID NOTARIZE_DMG_ID
 
 # ---- Manifest with sha256 of every artifact + sibling SHASUMS file ----
 write_release_manifest "$OUT_DIR/${ARTIFACT_BASE}.json" \

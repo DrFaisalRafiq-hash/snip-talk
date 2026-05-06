@@ -63,6 +63,11 @@ write_release_manifest() {
   "arch": "$ARCH",
   "platform": "$PLATFORM",
   "stamp": "$VERSION_STAMP",
+  "notarization": {
+    "status": "${NOTARIZE_STATUS:-skipped}",
+    "zip_submission_id": "${NOTARIZE_ZIP_ID:-}",
+    "dmg_submission_id": "${NOTARIZE_DMG_ID:-}"
+  },
   "artifacts": {${entries}
   }
 }
