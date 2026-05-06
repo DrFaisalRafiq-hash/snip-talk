@@ -13,6 +13,7 @@ import { MacDownload } from "@/components/MacDownload";
 import { ChromeExtensionDownload } from "@/components/ChromeExtensionDownload";
 import { InstallIphoneButton } from "@/components/InstallIphoneButton";
 import { UpdateChecker } from "@/components/UpdateChecker";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -115,6 +116,7 @@ const Index = () => {
             <ChromeExtensionDownload />
             <InstallIphoneButton />
           </div>
+          <ThemeToggle />
           <DeepLinkSharer />
           <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>
             Sign out
