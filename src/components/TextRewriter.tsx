@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Loader2, Copy, ArrowDownToLine } from "lucide-react";
+import { Sparkles, Loader2, Copy, ArrowDownToLine, Mic, Square } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { recordClipboard } from "@/lib/clipboard";
+import { requestMicPermission, micDeniedMessage } from "@/lib/mic";
 
 export type RewriteStyle = {
   id: string;
