@@ -168,6 +168,48 @@ ipcMain.handle("deep-link:initial", () => {
 });
 
 app.whenReady().then(async () => {
+  // ---- Inject CSP header for every renderer response ----
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [CSP],
+        "X-Content-Type-Options": ["nosniff"],
+        "Referrer-Policy": ["strict-origin-when-cross-origin"],
+        "X-Frame-Options": ["DENY"],
+      },
+    });
+  });
+
+  // ---- Permission gating: only allow what we actually need ----
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === "media"); // microphone only
+  });
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+    return permission === "media";
+  });
+
+  // ---- Block unauthorized cross-origin sub-resource loads (extra safety net) ----
+  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+    const u = safeUrl(details.url);
+    if (!u) return callback({});
+    const okScheme =
+      u.protocol === "file:" ||
+      u.protocol === "data:" ||
+      u.protocol === "blob:" ||
+      u.protocol === "devtools:" ||
+      u.protocol === "chrome-extension:";
+    if (okScheme) return callback({});
+    const devOrigin = safeUrl(process.env.ELECTRON_START_URL)?.origin;
+    const okOrigin =
+      ALLOWED_ORIGINS.has(u.origin) ||
+      (isDev && u.origin === devOrigin) ||
+      // websockets to allowlisted hosts
+      ((u.protocol === "ws:" || u.protocol === "wss:") &&
+        ALLOWED_ORIGINS.has(`https://${u.host}`));
+    callback(okOrigin ? {} : { cancel: true });
+  });
+
   if (process.platform === "darwin") {
     try {
       const status = systemPreferences.getMediaAccessStatus("microphone");
