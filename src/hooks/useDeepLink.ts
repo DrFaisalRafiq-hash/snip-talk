@@ -33,7 +33,6 @@ function parse(url: string): DeepLink | null {
     return null;
   }
 }
-}
 
 declare global {
   interface Window {
