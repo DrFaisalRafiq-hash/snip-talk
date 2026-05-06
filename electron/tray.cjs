@@ -246,8 +246,25 @@ function registerGlobalShortcut(accelerator) {
   return r.toggle.ok ? { ok: true } : { ok: false, error: r.toggle.error || "failed" };
 }
 
+// Snippets the renderer has uploaded to power the menu-bar quick-copy list.
+let traySnippets = [];
+
 function buildTrayMenu() {
   const accel = getAccelerator();
+  const snippetItems =
+    traySnippets.length === 0
+      ? [{ label: "No snippets yet", enabled: false }]
+      : traySnippets.slice(0, 20).map((s) => ({
+          label: `${(s.title || "Untitled").slice(0, 40)}${s.title && s.title.length > 40 ? "…" : ""}`,
+          toolTip: (s.content || "").slice(0, 200),
+          click: () => {
+            clipboard.writeText(s.content || "");
+            if (win && !win.isDestroyed()) {
+              win.webContents.send("snippet:pasted", { id: s.id, title: s.title });
+            }
+          },
+        }));
+
   return Menu.buildFromTemplate([
     { label: "Open Snip Talk", click: toggleWindow },
     {
@@ -256,9 +273,26 @@ function buildTrayMenu() {
       accelerator: accel,
     },
     { type: "separator" },
+    { label: "Snippets — click to copy", enabled: false },
+    ...snippetItems,
+    { type: "separator" },
     { label: "Quit", click: () => app.quit() },
   ]);
 }
+
+ipcMain.handle("tray:set-snippets", (_e, list) => {
+  traySnippets = Array.isArray(list)
+    ? list
+        .filter((s) => s && s.id)
+        .map((s) => ({
+          id: String(s.id),
+          title: String(s.title ?? ""),
+          content: String(s.content ?? ""),
+        }))
+    : [];
+  if (tray) tray.setContextMenu(buildTrayMenu());
+  return { ok: true, count: traySnippets.length };
+});
 
 ipcMain.handle("tray:get-shortcut", () => ({
   accelerator: getAccelerator(),
