@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from "react";
+import { TextRewriter } from "@/components/TextRewriter";
 import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -184,6 +185,7 @@ export function Dictation({
   const denyInfo = micDeniedMessage();
 
   return (
+    <>
     <div className="bg-card border rounded-2xl p-8 shadow-[var(--shadow-paper)]">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -302,6 +304,17 @@ export function Dictation({
           </div>
         )}
       </div>
-    </div>
+
+      </div>
+
+      <TextRewriter
+        userId={userId}
+        initialText={fullText}
+        onReplace={(t) => {
+          setCommitted([t]);
+          setPartial("");
+        }}
+      />
+    </>
   );
 }

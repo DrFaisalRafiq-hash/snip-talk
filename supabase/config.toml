@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.elevenlabs-token]
 verify_jwt = false
+
+[functions.expand-text]
+verify_jwt = false
