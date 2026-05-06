@@ -109,19 +109,18 @@ export function Dictation({
     try { await scribe.disconnect(); } catch {}
   }, [scribe]);
 
-  // Keyboard shortcut: ⌘/Ctrl + Shift + D toggles dictation
+  // Keyboard shortcut (user-editable) toggles dictation
+  const shortcut = useShortcut();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const mod = isMac ? e.metaKey : e.ctrlKey;
-      if (mod && e.shiftKey && (e.key === "d" || e.key === "D")) {
-        e.preventDefault();
-        if (scribe.isConnected) stop();
-        else if (!starting) start();
-      }
+      if (!matchesShortcut(e, shortcut)) return;
+      e.preventDefault();
+      if (scribe.isConnected) stop();
+      else if (!starting) start();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [scribe.isConnected, starting, start, stop]);
+  }, [scribe.isConnected, starting, start, stop, shortcut]);
 
   const fullText = [...committed, partial].filter(Boolean).join(" ");
 
