@@ -6,6 +6,7 @@ import { Dictation } from "@/components/Dictation";
 import { Snippets } from "@/components/Snippets";
 import { ClipboardHistory } from "@/components/ClipboardHistory";
 import { DeepLinkSharer } from "@/components/DeepLinkSharer";
+import { GlobalShortcutEditor } from "@/components/GlobalShortcutEditor";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useState } from "react";
@@ -18,7 +19,7 @@ const Index = () => {
   const [dictatePrefill, setDictatePrefill] = useState<string | undefined>(undefined);
   const [dictateCommand, setDictateCommand] = useState<{
     nonce: number;
-    mode?: "live" | "stop";
+    mode?: "live" | "stop" | "toggle";
     action?: "copy" | "clear";
   }>({ nonce: 0 });
 
@@ -29,7 +30,10 @@ const Index = () => {
         if (text) setDictatePrefill(text);
         const rawMode = link.params.get("mode")?.toLowerCase();
         const rawAction = link.params.get("action")?.toLowerCase();
-        const mode = rawMode === "live" || rawMode === "stop" ? rawMode : undefined;
+        const mode =
+          rawMode === "live" || rawMode === "stop" || rawMode === "toggle"
+            ? rawMode
+            : undefined;
         const action =
           rawAction === "copy" || rawAction === "clear" ? rawAction : undefined;
         if (mode || action) {
@@ -116,6 +120,10 @@ const Index = () => {
         )}
         {tab === "snippets" && <Snippets userId={session.user.id} />}
         {tab === "history" && <ClipboardHistory userId={session.user.id} />}
+
+        <div className="mt-6">
+          <GlobalShortcutEditor />
+        </div>
 
       </main>
     </div>

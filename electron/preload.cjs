@@ -23,4 +23,12 @@ contextBridge.exposeInMainWorld("sniptalk", {
     return ipcRenderer.invoke("deep-link:initial");
   },
   isElectron: true,
+  /** Tray-only: read the current global shortcut accelerator. */
+  getGlobalShortcut() {
+    return ipcRenderer.invoke("tray:get-shortcut");
+  },
+  /** Tray-only: persist & re-register the global shortcut accelerator. */
+  setGlobalShortcut(accelerator) {
+    return ipcRenderer.invoke("tray:set-shortcut", accelerator);
+  },
 });

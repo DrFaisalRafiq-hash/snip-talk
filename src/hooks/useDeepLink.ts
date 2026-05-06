@@ -40,6 +40,10 @@ declare global {
       onDeepLink: (cb: (url: string) => void) => () => void;
       getInitialDeepLink: () => Promise<string | null>;
       isElectron: boolean;
+      getGlobalShortcut?: () => Promise<{ accelerator: string; default: string }>;
+      setGlobalShortcut?: (
+        accelerator: string
+      ) => Promise<{ ok: boolean; error?: string; accelerator: string }>;
     };
   }
 }
