@@ -41,13 +41,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  setup:
+    name: Resolve build matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        env:
+          EVENT: ${{ github.event_name }}
+          ARCH_INPUT: ${{ inputs.arch }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT" == "workflow_dispatch" && -n "${ARCH_INPUT:-}" ]]; then
+            MATRIX="{\"arch\":[\"${ARCH_INPUT}\"]}"
+          else
+            MATRIX='{"arch":["arm64","x64","universal"]}'
+          fi
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Resolved matrix: $MATRIX"
+
   build:
     name: Build • ${{ matrix.arch }}
+    needs: setup
     runs-on: macos-14   # arm64 runner; cross-compiles x64/universal cleanly
     strategy:
       fail-fast: false
-      matrix:
-        arch: ${{ (github.event_name == 'workflow_dispatch' && fromJson(format('["{0}"]', inputs.arch))) || fromJson('["arm64","x64","universal"]') }}
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+    env:
+      APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -66,9 +89,6 @@ jobs:
 
       - name: Import Developer ID certificate
         if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
-        env:
-          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
-          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/sign.keychain-db"
