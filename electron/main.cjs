@@ -180,6 +180,12 @@ function createWindow() {
     mainWindow.focus();
   });
 
+  // Keep our version-stamped title even after the renderer sets <title>
+  mainWindow.on("page-title-updated", (event) => {
+    event.preventDefault();
+    mainWindow.setTitle(WINDOW_TITLE);
+  });
+
   if (isDev) {
     mainWindow.loadURL(process.env.ELECTRON_START_URL);
   } else {
