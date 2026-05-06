@@ -116,6 +116,7 @@ const Index = () => {
             <ChromeExtensionDownload />
             <InstallIphoneButton />
           </div>
+          <ThemeToggle />
           <DeepLinkSharer />
           <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>
             Sign out
