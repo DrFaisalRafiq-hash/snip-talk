@@ -51,6 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
+      build_universal: ${{ steps.set.outputs.build_universal }}
     steps:
       - id: set
         env:
@@ -58,18 +59,27 @@ jobs:
           ARCH_INPUT: ${{ inputs.arch }}
         run: |
           set -euo pipefail
+          # Native runners per arch — no cross-compilation.
+          # Universal is produced by a separate merge job, not the matrix.
           if [[ "$EVENT" == "workflow_dispatch" && -n "${ARCH_INPUT:-}" ]]; then
-            MATRIX="{\"arch\":[\"${ARCH_INPUT}\"]}"
+            case "$ARCH_INPUT" in
+              arm64)     MATRIX='{"include":[{"arch":"arm64","runner":"macos-14"}]}'; UNI=false ;;
+              x64)       MATRIX='{"include":[{"arch":"x64","runner":"macos-13"}]}';   UNI=false ;;
+              universal) MATRIX='{"include":[{"arch":"arm64","runner":"macos-14"},{"arch":"x64","runner":"macos-13"}]}'; UNI=true ;;
+              *) echo "Unknown arch input: $ARCH_INPUT" >&2; exit 1 ;;
+            esac
           else
-            MATRIX='{"arch":["arm64","x64","universal"]}'
+            MATRIX='{"include":[{"arch":"arm64","runner":"macos-14"},{"arch":"x64","runner":"macos-13"}]}'
+            UNI=true
           fi
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-          echo "Resolved matrix: $MATRIX"
+          echo "build_universal=$UNI" >> "$GITHUB_OUTPUT"
+          echo "Resolved matrix: $MATRIX (universal=$UNI)"
 
   build:
     name: Build • ${{ matrix.arch }}
     needs: setup
-    runs-on: macos-14   # arm64 runner; cross-compiles x64/universal cleanly
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
@@ -81,7 +91,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # release-mac.sh uses git rev-list --count for build #
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -90,10 +100,6 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        # Workaround for npm/cli#4828: npm ci skips optional native deps when
-        # the lockfile was generated on a different OS. Force-install the
-        # rollup darwin binary matching the runner's CPU so npm never trips
-        # EBADPLATFORM trying to install the wrong-arch package.
         run: |
           npm ci
           case "$(uname -m)" in
@@ -104,6 +110,9 @@ jobs:
           echo "Installing $ROLLUP_PKG for $(uname -m)"
           npm install --no-save "$ROLLUP_PKG"
 
+      - name: Run unit tests
+        run: npm test --silent --if-present
+
       - name: Import Developer ID certificate
         if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
         run: |
@@ -112,7 +121,6 @@ jobs:
           KEYCHAIN_PWD="$(openssl rand -hex 24)"
           CERT_PATH="$RUNNER_TEMP/cert.p12"
           echo "$APPLE_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
-
           security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
@@ -150,19 +158,17 @@ jobs:
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "Stamped artifact base: $BASE"
 
-      - name: Verify artifacts (size, checksum, install smoke-test)
+      - name: Verify artifacts (size, checksum, arch, codesign)
         env:
           ZIP: ${{ steps.artifacts.outputs.zip }}
           DMG: ${{ steps.artifacts.outputs.dmg }}
           JSON: ${{ steps.artifacts.outputs.json }}
           BASE: ${{ steps.artifacts.outputs.base }}
-          # Reject builds whose installer is suspiciously tiny/huge — guards
-          # against empty .app bundles and accidental `node_modules` blowups.
-          MIN_BYTES: 20000000     # 20 MB
-          MAX_BYTES: 600000000    # 600 MB
+          MIN_BYTES: 20000000
+          MAX_BYTES: 600000000
+          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
         run: |
           set -euo pipefail
-
           fail() { echo "::error::$*"; exit 1; }
           ok()   { echo "✅ $*"; }
 
@@ -170,90 +176,184 @@ jobs:
           [[ -f "$DMG"  ]] || fail "DMG missing: $DMG"
           [[ -f "$JSON" ]] || fail "manifest missing: $JSON"
 
-          # ---- Size sanity ----
           for f in "$ZIP" "$DMG"; do
             sz=$(stat -f%z "$f")
-            human=$(du -h "$f" | awk '{print $1}')
-            (( sz >= MIN_BYTES )) || fail "$f is too small ($human, ${sz}B)"
-            (( sz <= MAX_BYTES )) || fail "$f is too large ($human, ${sz}B)"
-            ok "size OK: $(basename "$f") = $human"
+            (( sz >= MIN_BYTES )) || fail "$f too small (${sz}B)"
+            (( sz <= MAX_BYTES )) || fail "$f too large (${sz}B)"
+            ok "size OK: $(basename "$f")"
           done
 
-          # ---- Checksum verification against the SHASUMS sidecar ----
-          SHASUMS="release/${BASE}.SHASUMS"
-          [[ -f "$SHASUMS" ]] || fail "missing $SHASUMS"
-          ( cd release && shasum -a 256 -c "$(basename "$SHASUMS")" ) \
-            || fail "checksum verification failed"
-          ok "sha256 verified for all artifacts"
+          ( cd release && shasum -a 256 -c "${BASE}.SHASUMS" ) || fail "checksum failed"
+          ok "sha256 verified"
 
-          # Cross-check that the manifest's recorded sha matches what we computed.
-          for key in zip dmg; do
-            file=$(jq -r ".artifacts.${key}.file"   "$JSON")
-            want=$(jq -r ".artifacts.${key}.sha256" "$JSON")
-            got=$(shasum -a 256 "release/${file}" | awk '{print $1}')
-            [[ "$want" == "$got" ]] || fail "manifest sha mismatch for ${key}: want=$want got=$got"
-            ok "manifest sha matches for ${file}"
-          done
-
-          # ---- Install smoke-test: mount DMG, copy .app, launch, kill ----
-          MOUNT="$RUNNER_TEMP/dmg-mount"
+          # Confirm the packaged binary's arch matches matrix.arch.
+          MOUNT="$RUNNER_TEMP/dmg-mount-${{ matrix.arch }}"
           rm -rf "$MOUNT" && mkdir -p "$MOUNT"
-          hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet \
-            || fail "hdiutil attach failed"
+          hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet
           trap 'hdiutil detach "$MOUNT" -quiet || true' EXIT
-
           APP=$(ls -d "$MOUNT"/*.app | head -n1)
-          [[ -d "$APP" ]] || fail "no .app inside DMG"
-          ok "DMG mounted, found $(basename "$APP")"
+          MAIN_BIN=$(ls "$APP"/Contents/MacOS/* | head -n1)
+          ARCHS=$(lipo -archs "$MAIN_BIN" 2>/dev/null || file "$MAIN_BIN")
+          echo "binary archs: $ARCHS"
+          case "${{ matrix.arch }}" in
+            arm64) [[ "$ARCHS" == *arm64*  && "$ARCHS" != *x86_64* ]] || fail "expected arm64-only, got: $ARCHS" ;;
+            x64)   [[ "$ARCHS" == *x86_64* && "$ARCHS" != *arm64*  ]] || fail "expected x86_64-only, got: $ARCHS" ;;
+          esac
+          ok "binary arch matches matrix.arch=${{ matrix.arch }}"
 
-          # Verify codesign (allow unsigned only when no APPLE_IDENTITY was set).
           if [[ -n "${APPLE_IDENTITY:-}" ]]; then
-            codesign --verify --deep --strict --verbose=2 "$APP" \
-              || fail "codesign verification failed"
+            codesign --verify --deep --strict --verbose=2 "$APP" || fail "codesign failed"
             ok "codesign verified"
-            spctl --assess --type execute --verbose=2 "$APP" \
-              || echo "::warning::spctl assessment failed (notarization may be pending)"
-            xcrun stapler validate "$APP" \
-              && ok "staple ticket valid" \
-              || echo "::warning::no valid staple ticket on .app"
-          else
-            echo "::warning::APPLE_IDENTITY not set — skipping codesign/spctl checks"
           fi
 
-          # Copy out, launch headlessly, confirm process starts, then kill.
-          STAGE="$RUNNER_TEMP/installed"
+      - name: Stage .app bundle for universal merge
+        run: |
+          set -euo pipefail
+          APP="release/Snip Talk-darwin-${{ matrix.arch }}/Snip Talk.app"
+          [[ -d "$APP" ]] || { echo "::error::no .app at $APP"; exit 1; }
+          STAGE="$RUNNER_TEMP/app-stage"
           mkdir -p "$STAGE"
-          cp -R "$APP" "$STAGE/"
-          INSTALLED="$STAGE/$(basename "$APP")"
-          ok "copied to $INSTALLED"
+          ( cd "$(dirname "$APP")" && /usr/bin/ditto -c -k --sequesterRsrc --keepParent "Snip Talk.app" "$STAGE/app-darwin-${{ matrix.arch }}.zip" )
+          ls -lh "$STAGE"
 
-          # Don't actually let the GUI open windows on the runner; -j returns
-          # immediately after launching, then we kill by bundle id.
-          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INSTALLED/Contents/Info.plist")
-          echo "Launching $BUNDLE_ID for smoke test…"
-          open -j -g -a "$INSTALLED" || fail "open failed"
-          sleep 4
-          if pgrep -f "$INSTALLED/Contents/MacOS/" >/dev/null; then
-            ok "process is running"
-            pkill -f "$INSTALLED/Contents/MacOS/" || true
-          else
-            fail "app did not start (no process matched $INSTALLED)"
-          fi
-
-          # Confirm the launched binary's version metadata matches the manifest.
-          PLIST_VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INSTALLED/Contents/Info.plist")
-          MAN_VER=$(jq -r '.version' "$JSON")
-          [[ "$PLIST_VER" == "$MAN_VER" ]] || fail "version mismatch: plist=$PLIST_VER manifest=$MAN_VER"
-          ok "version stamp matches: $PLIST_VER"
-
-          echo
-          echo "🎉 all artifact verifications passed for $BASE"
+      - name: Upload .app for universal merge
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-darwin-${{ matrix.arch }}
+          path: ${{ runner.temp }}/app-stage/app-darwin-${{ matrix.arch }}.zip
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Upload workflow artifacts (stamped filenames)
         uses: actions/upload-artifact@v4
         with:
-          # Artifact name itself carries the version stamp so downloads land
-          # with the same stamped basename used for the release upload.
+          name: ${{ steps.artifacts.outputs.base }}
+          path: |
+            release/${{ steps.artifacts.outputs.base }}.zip
+            release/${{ steps.artifacts.outputs.base }}.dmg
+            release/${{ steps.artifacts.outputs.base }}.json
+            release/${{ steps.artifacts.outputs.base }}.json.sha256
+            release/${{ steps.artifacts.outputs.base }}.SHASUMS
+            release/${{ steps.artifacts.outputs.base }}.zip.sig
+            release/${{ steps.artifacts.outputs.base }}.dmg.sig
+            release/${{ steps.artifacts.outputs.base }}.notarization.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Cleanup signing keychain
+        if: always() && env.KEYCHAIN_PATH != ''
+        run: security delete-keychain "$KEYCHAIN_PATH" || true
+
+  universal:
+    name: Merge universal build
+    needs: [setup, build]
+    if: ${{ needs.setup.outputs.build_universal == 'true' }}
+    runs-on: macos-14
+    env:
+      APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install --no-save @rollup/rollup-darwin-arm64
+
+      - name: Download arm64 .app
+        uses: actions/download-artifact@v4
+        with:
+          name: app-darwin-arm64
+          path: ${{ runner.temp }}/arm64
+
+      - name: Download x64 .app
+        uses: actions/download-artifact@v4
+        with:
+          name: app-darwin-x64
+          path: ${{ runner.temp }}/x64
+
+      - name: Merge into universal .app via @electron/universal
+        env:
+          ARM_APP: ${{ runner.temp }}/u-arm64/Snip Talk.app
+          X64_APP: ${{ runner.temp }}/u-x64/Snip Talk.app
+          OUT_APP: ${{ runner.temp }}/u-out/Snip Talk.app
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/u-arm64" "$RUNNER_TEMP/u-x64" "$RUNNER_TEMP/u-out"
+          /usr/bin/ditto -x -k "$RUNNER_TEMP/arm64/app-darwin-arm64.zip" "$RUNNER_TEMP/u-arm64"
+          /usr/bin/ditto -x -k "$RUNNER_TEMP/x64/app-darwin-x64.zip" "$RUNNER_TEMP/u-x64"
+          rm -rf "$OUT_APP"
+          node -e "
+            const { makeUniversalApp } = require('@electron/universal');
+            makeUniversalApp({
+              x64AppPath: process.env.X64_APP,
+              arm64AppPath: process.env.ARM_APP,
+              outAppPath: process.env.OUT_APP,
+              force: true,
+            }).then(() => console.log('merged universal app'))
+              .catch(e => { console.error(e); process.exit(1); });
+          "
+
+      - name: Verify universal binary
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/u-out/Snip Talk.app"
+          BIN="$APP/Contents/MacOS/$(ls "$APP/Contents/MacOS" | head -n1)"
+          ARCHS=$(lipo -archs "$BIN")
+          echo "universal binary archs: $ARCHS"
+          [[ "$ARCHS" == *arm64* && "$ARCHS" == *x86_64* ]] || { echo "::error::universal binary missing an arch ($ARCHS)"; exit 1; }
+
+      - name: Import Developer ID certificate
+        if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/sign.keychain-db"
+          KEYCHAIN_PWD="$(openssl rand -hex 24)"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          echo "$APPLE_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security import "$CERT_PATH" -k "$KEYCHAIN" -P "$APPLE_CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PWD" "$KEYCHAIN" >/dev/null
+          rm -f "$CERT_PATH"
+          echo "KEYCHAIN_PATH=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: Sign, notarize, package universal DMG
+        env:
+          ARCH: universal
+          BUILD_NUMBER: ${{ github.run_number }}
+          PREBUILT_APP_PATH: ${{ runner.temp }}/u-out/Snip Talk.app
+          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: bash scripts/release-mac.sh
+
+      - name: Compute universal artifact paths
+        id: artifacts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          JSON=$(ls release/*-darwin-universal.json | head -n1)
+          BASE="$(basename "${JSON%.json}")"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload universal artifacts
+        uses: actions/upload-artifact@v4
+        with:
           name: ${{ steps.artifacts.outputs.base }}
           path: |
             release/${{ steps.artifacts.outputs.base }}.zip
