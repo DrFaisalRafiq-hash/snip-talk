@@ -38,22 +38,6 @@ function formatAccelerator(a: string): string {
     .join("+");
 }
 
-declare global {
-  interface Window {
-    sniptalk?: {
-      onDeepLink: (cb: (url: string) => void) => () => void;
-      getInitialDeepLink: () => Promise<string | null>;
-      isElectron: boolean;
-      getGlobalShortcut?: () => Promise<{ accelerator: string; default: string }>;
-      setGlobalShortcut?: (a: string) => Promise<{
-        ok: boolean;
-        error?: string;
-        accelerator: string;
-      }>;
-    };
-  }
-}
-
 export function GlobalShortcutEditor() {
   const supported = !!window.sniptalk?.setGlobalShortcut;
   const [current, setCurrent] = useState<string>("CommandOrControl+Shift+D");
