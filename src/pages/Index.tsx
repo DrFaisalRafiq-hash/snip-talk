@@ -162,6 +162,7 @@ const Index = () => {
         </div>
 
       </main>
+      <UpdateChecker />
     </div>
   );
 };
