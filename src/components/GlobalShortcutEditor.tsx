@@ -39,7 +39,10 @@ function formatAccelerator(a: string): string {
 }
 
 export function GlobalShortcutEditor() {
-  const supported = !!window.sniptalk?.setGlobalShortcut;
+  const isTray =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("tray") === "1";
+  const supported = isTray && !!window.sniptalk?.setGlobalShortcut;
   const [current, setCurrent] = useState<string>("CommandOrControl+Shift+D");
   const [defaultAcc, setDefaultAcc] = useState<string>("CommandOrControl+Shift+D");
   const [open, setOpen] = useState(false);
