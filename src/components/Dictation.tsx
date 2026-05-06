@@ -81,6 +81,20 @@ export function Dictation() {
     try { await scribe.disconnect(); } catch {}
   }, [scribe]);
 
+  // Keyboard shortcut: ⌘/Ctrl + Shift + D toggles dictation
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && e.shiftKey && (e.key === "d" || e.key === "D")) {
+        e.preventDefault();
+        if (scribe.isConnected) stop();
+        else if (!starting) start();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [scribe.isConnected, starting, start, stop]);
+
   const fullText = [...committed, partial].filter(Boolean).join(" ");
 
   const copy = async () => {
@@ -102,6 +116,9 @@ export function Dictation() {
           <span className="font-mono-tight text-xs uppercase tracking-widest text-muted-foreground">
             {scribe.isConnected ? "Listening" : starting ? "Connecting" : denied ? "Mic blocked" : "Idle"}
           </span>
+          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border bg-background/60 px-1.5 py-0.5 font-mono-tight text-[10px] uppercase tracking-widest text-muted-foreground">
+            {isMac ? "⌘" : "Ctrl"}+⇧+D
+          </kbd>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" size="icon" onClick={copy} disabled={!fullText}><Copy className="h-4 w-4" /></Button>
