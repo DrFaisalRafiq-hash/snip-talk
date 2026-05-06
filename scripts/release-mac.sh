@@ -63,7 +63,7 @@ else
     --app-copyright="© $(date +%Y) Snip Talk" \
     --extend-info="build/Info.plist.extend.plist" \
     --prune=true \
-    --ignore="^/(src|public|electron|supabase|release|node_modules/.cache)"
+    --ignore="^/(src|public|supabase|release|node_modules/.cache)"
 fi
 
 # ---- Stamp the bundle's Info.plist with version metadata ----
