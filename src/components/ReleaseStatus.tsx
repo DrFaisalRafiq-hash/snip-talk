@@ -264,7 +264,8 @@ export function ReleaseStatus() {
                     </li>
                   );
                 })}
-            </ul>
+              </ul>
+            </>
           )}
         </>
       )}
