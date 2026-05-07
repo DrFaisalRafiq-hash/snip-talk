@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, CheckCircle2, AlertCircle, ExternalLink, Loader2, Download, Package } from "lucide-react";
 import {
+  GITHUB_API_LATEST_RELEASE,
+  GITHUB_RELEASES_URL,
+} from "@/lib/github";
+import {
   isMacAsset,
   pickBest,
   pickOsFallback,
@@ -10,8 +14,7 @@ import {
   type Arch,
   type InstallerKind,
 } from "@/lib/mac-asset";
-
-const GITHUB_REPO = "DrFaisalRafiq-hash/snip-talk";
+import { detectArch } from "@/lib/platform";
 
 type ReleaseAsset = {
   name: string;
@@ -46,10 +49,10 @@ function classifyArch(name: string): { arm64: boolean; x64: boolean; universal: 
 
 async function fetchLatestRelease(): Promise<State> {
   try {
-    const res = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-      { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" }
-    );
+    const res = await fetch(GITHUB_API_LATEST_RELEASE, {
+      headers: { Accept: "application/vnd.github+json" },
+      cache: "no-store",
+    });
     if (res.status === 404) {
       return { kind: "empty", message: "No published release yet." };
     }
@@ -72,7 +75,7 @@ async function fetchLatestRelease(): Promise<State> {
       kind: "ok",
       release: {
         tag: data?.tag_name ?? "unknown",
-        htmlUrl: data?.html_url ?? `https://github.com/${GITHUB_REPO}/releases`,
+        htmlUrl: data?.html_url ?? GITHUB_RELEASES_URL,
         publishedAt: data?.published_at ?? null,
         macAssets,
         hasArm64,
@@ -144,16 +147,6 @@ function FormatBadge({ kind }: { kind: InstallerKind }) {
   );
 }
 
-function detectArch(): Arch {
-  if (typeof navigator === "undefined") return "unknown";
-  const ua = navigator.userAgent.toLowerCase();
-  if (/arm64|aarch64/.test(ua)) return "arm64";
-  if (/mac os x/.test(ua)) {
-    return (navigator.hardwareConcurrency ?? 0) >= 8 ? "arm64" : "x64";
-  }
-  return "unknown";
-}
-
 function RecommendedInstaller({
   assets,
 }: {
@@ -223,7 +216,7 @@ export function ReleaseStatus() {
     void refresh();
   }, [refresh]);
 
-  const releasesUrl = `https://github.com/${GITHUB_REPO}/releases`;
+  const releasesUrl = GITHUB_RELEASES_URL;
 
   return (
     <section

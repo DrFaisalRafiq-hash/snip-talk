@@ -36,7 +36,9 @@ function writeSettings(patch) {
   try {
     fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(next));
-  } catch {}
+  } catch (err) {
+    console.warn(`[tray] failed to persist settings to ${SETTINGS_PATH}: ${err?.message ?? err}`);
+  }
   return next;
 }
 function getAccelerator() {
@@ -189,10 +191,13 @@ function pasteViaAppleScript() {
     ["-e", 'tell application "System Events" to keystroke "v" using command down'],
     (err) => {
       if (err) {
+        console.warn(`[tray] osascript paste failed: ${err.message}`);
         // Likely missing Accessibility permission. Trigger the prompt.
         try {
           systemPreferences.isTrustedAccessibilityClient(true);
-        } catch {}
+        } catch (promptErr) {
+          console.warn(`[tray] accessibility prompt failed: ${promptErr?.message ?? promptErr}`);
+        }
         if (win && !win.isDestroyed()) {
           win.webContents.send(
             "snippet:paste-error",

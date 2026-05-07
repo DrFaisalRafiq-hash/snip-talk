@@ -1,8 +1,11 @@
-// Pure helpers for picking the best macOS release asset by filename.
+// Pure helpers for picking the best release asset by filename.
 // Extracted so they can be unit-tested without touching the React component.
 
 export type Arch = "arm64" | "x64" | "unknown";
 export type InstallerKind = "dmg" | "zip" | "tar.gz" | "unknown";
+
+const SIDECAR_RE = /\.(sig|sha256|shasums?|json|txt|asc|md5|sha512|pem|yml|yaml|xml)$/;
+const OTHER_OS_RE = /(win|windows|linux|android|ios)/;
 
 const INSTALLER_EXT_RE = /\.(dmg|zip|tar\.gz|tgz)$/;
 
@@ -24,7 +27,7 @@ export function isMacAsset(name: string): boolean {
 
 export function scoreMacAsset(name: string, preferArch: Arch): number {
   const s = name.toLowerCase();
-  if (/\.(sig|sha256|shasums?|json|txt|asc|md5|sha512|pem|asc)$/.test(s)) return -1;
+  if (SIDECAR_RE.test(s)) return -1;
   if (!isMacAsset(s)) return -1;
   let v = 0;
   // Prefer the most "native" installer: DMG > tar.gz > zip
@@ -55,9 +58,9 @@ export function pickOsFallback<T extends { name: string }>(assets: T[]): T | nul
     .map((a) => {
       const name = (a?.name ?? "").toLowerCase();
       if (!name) return { a, s: -1 };
-      if (/\.(sig|asc|pem|sha256|sha512|shasums?|md5|json|txt|yml|yaml|xml)$/.test(name)) return { a, s: -1 };
+      if (SIDECAR_RE.test(name)) return { a, s: -1 };
       if (!INSTALLER_EXT_RE.test(name)) return { a, s: -1 };
-      if (/(win|windows|linux|android|ios)/.test(name)) return { a, s: -1 };
+      if (OTHER_OS_RE.test(name)) return { a, s: -1 };
       let v = 0;
       if (name.endsWith(".dmg")) v += 20;
       else if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) v += 8;
@@ -65,6 +68,43 @@ export function pickOsFallback<T extends { name: string }>(assets: T[]): T | nul
       if (/(^|[-_.])(mac|macos|darwin|osx|apple)([-_.]|$)/.test(name)) v += 10;
       return { a, s: v };
     })
+    .filter((x) => x.s >= 0)
+    .sort((a, b) => b.s - a.s);
+  return ranked[0]?.a ?? null;
+}
+
+// Cross-platform asset picker used by the in-app update checker. Scores by
+// extension preference + arch match per platform, then returns the winner.
+export function pickPlatformAsset<T extends { name: string }>(
+  assets: T[],
+  platform: "mac" | "win" | "linux" | "other",
+  arch: Arch,
+): T | null {
+  if (platform === "mac") return pickBest(assets, arch) ?? pickOsFallback(assets);
+
+  const score = (rawName: string): number => {
+    const s = rawName.toLowerCase();
+    if (SIDECAR_RE.test(s)) return -1;
+    if (platform === "win") {
+      if (!/\.(exe|msi|zip)$/.test(s)) return -1;
+      if (!/(win|windows)/.test(s)) return -1;
+      let v = s.endsWith(".exe") ? 10 : s.endsWith(".msi") ? 8 : 1;
+      if (arch === "arm64" && /arm64/.test(s)) v += 5;
+      if (arch === "x64" && /(x64|x86_64)/.test(s)) v += 5;
+      return v;
+    }
+    if (platform === "linux") {
+      if (!/\.(appimage|deb|rpm|tar\.gz|tgz)$/.test(s)) return -1;
+      let v = s.endsWith(".appimage") ? 10 : 5;
+      if (arch === "arm64" && /(arm64|aarch64)/.test(s)) v += 5;
+      if (arch === "x64" && /(x64|x86_64|amd64)/.test(s)) v += 5;
+      return v;
+    }
+    return -1;
+  };
+
+  const ranked = assets
+    .map((a) => ({ a, s: score(a?.name ?? "") }))
     .filter((x) => x.s >= 0)
     .sort((a, b) => b.s - a.s);
   return ranked[0]?.a ?? null;

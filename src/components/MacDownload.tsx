@@ -2,99 +2,19 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Apple, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { GITHUB_API_LATEST_RELEASE, GITHUB_RELEASES_URL } from "@/lib/github";
+import {
+  pickBest,
+  pickOsFallback,
+  scoreMacAsset,
+  type Arch,
+} from "@/lib/mac-asset";
+import { detectArchHighEntropy } from "@/lib/platform";
 
-// Configure your GitHub repo here (owner/name). If the API call fails or
-// no asset is found, we fall back to the static file in /public.
-const GITHUB_REPO = "DrFaisalRafiq-hash/snip-talk";
 const STATIC_FALLBACK = "/snip-talk-mac.zip";
 
 type Asset = { name: string; url: string; size?: number; tag?: string };
-
-// Detect Apple Silicon vs Intel as best we can in a browser. Modern Chromium
-// exposes high-entropy UA-CH; older browsers fall back to UA string sniffing.
-async function detectMacArch(): Promise<"arm64" | "x64" | "unknown"> {
-  try {
-    const uaData = (navigator as any).userAgentData;
-    if (uaData?.getHighEntropyValues) {
-      const hi = await uaData.getHighEntropyValues(["architecture", "bitness"]);
-      if (hi?.architecture === "arm") return "arm64";
-      if (hi?.architecture === "x86" && hi?.bitness === "64") return "x64";
-    }
-  } catch {
-    /* ignore */
-  }
-  const ua = navigator.userAgent.toLowerCase();
-  if (/arm64|aarch64/.test(ua)) return "arm64";
-  // Intel Macs report "intel mac os x"; Apple Silicon often spoofs the same
-  // string but exposes >8 logical cores rarely on Intel laptops. Default to
-  // arm64 on modern macOS as that's the common case on new hardware.
-  if (/mac os x/.test(ua)) {
-    const cores = navigator.hardwareConcurrency ?? 0;
-    return cores >= 8 ? "arm64" : "x64";
-  }
-  return "unknown";
-}
-
-function isMacAsset(name: string): boolean {
-  const s = name.toLowerCase();
-  if (!/\.(dmg|zip)$/.test(s)) return false;
-  // Match macOS-ish tokens but exclude things like "extension.zip" / "win.zip".
-  if (/(^|[-_.])(mac|macos|darwin|osx|apple)([-_.]|$)/.test(s)) return true;
-  // Some builds only include the arch token.
-  if (/(arm64|aarch64|x64|x86_64|universal|intel)/.test(s) && !/(win|linux|android)/.test(s)) return true;
-  return false;
-}
-
-function scoreMacAsset(name: string, preferArch: "arm64" | "x64" | "unknown"): number {
-  const s = name.toLowerCase();
-  if (!isMacAsset(s)) return -1;
-  let v = 0;
-  // Installer over zipped .app
-  if (s.endsWith(".dmg")) v += 20;
-  if (s.endsWith(".zip")) v += 5;
-  // Arch match
-  const isArm = /(arm64|aarch64|apple[-_.]?silicon)/.test(s);
-  const isX64 = /(x64|x86_64|intel)/.test(s);
-  const isUniversal = /universal/.test(s);
-  if (isUniversal) v += 8;
-  if (preferArch === "arm64" && isArm) v += 15;
-  if (preferArch === "x64" && isX64) v += 15;
-  // Mild penalty for the wrong arch when we know what we want
-  if (preferArch === "arm64" && isX64 && !isUniversal) v -= 5;
-  if (preferArch === "x64" && isArm && !isUniversal) v -= 5;
-  // Skip detached signatures, checksums, manifests
-  if (/\.(sig|sha256|shasums?|json|txt|asc)$/.test(s)) return -1;
-  return v;
-}
-
-function pickBest(assets: any[], arch: "arm64" | "x64" | "unknown"): any | null {
-  const candidates = assets
-    .map((a) => ({ a, s: scoreMacAsset(a?.name ?? "", arch) }))
-    .filter((x) => x.s >= 0)
-    .sort((a, b) => b.s - a.s);
-  return candidates[0]?.a ?? null;
-}
-
-// Loose fallback: any .dmg/.zip that mentions a mac/darwin/osx/apple token,
-// regardless of arch. Used only when arch-aware matching finds nothing.
-function pickOsFallback(assets: any[]): any | null {
-  const ranked = assets
-    .map((a) => {
-      const name = (a?.name ?? "").toLowerCase();
-      if (!name) return { a, s: -1 };
-      if (/\.(sig|asc|pem|sha256|sha512|shasums?|md5|json|txt|yml|yaml|xml)$/.test(name)) return { a, s: -1 };
-      if (!/\.(dmg|zip)$/.test(name)) return { a, s: -1 };
-      if (/(win|windows|linux|android|ios)/.test(name)) return { a, s: -1 };
-      let v = 0;
-      if (name.endsWith(".dmg")) v += 20;
-      if (name.endsWith(".zip")) v += 5;
-      if (/(^|[-_.])(mac|macos|darwin|osx|apple)([-_.]|$)/.test(name)) v += 10;
-      return { a, s: v };
-    })
-    .filter((x) => x.s >= 0)
-    .sort((a, b) => b.s - a.s);
-  return ranked[0]?.a ?? null;
-}
+type RawAsset = { name: string; browser_download_url: string; size?: number };
 
 // Debug mode: enable with `?debug-download=1` in URL or
 // `localStorage.setItem('debug-download', '1')`. Logs the full ranking table
@@ -110,11 +30,11 @@ function isDebugEnabled(): boolean {
   }
 }
 
-function explainScore(name: string, arch: "arm64" | "x64" | "unknown"): string {
+function explainScore(name: string, arch: Arch): string {
   const s = (name ?? "").toLowerCase();
   const reasons: string[] = [];
   if (/\.(sig|sha256|shasums?|json|txt|asc|md5|sha512|pem)$/.test(s)) reasons.push("sidecar/checksum → -1");
-  if (!/\.(dmg|zip)$/.test(s)) reasons.push("not .dmg/.zip");
+  if (!/\.(dmg|zip|tar\.gz|tgz)$/.test(s)) reasons.push("not an installer");
   if (s.endsWith(".dmg")) reasons.push("+20 dmg");
   if (s.endsWith(".zip")) reasons.push("+5 zip");
   if (/(^|[-_.])(mac|macos|darwin|osx|apple)([-_.]|$)/.test(s)) reasons.push("mac token");
@@ -132,18 +52,19 @@ function explainScore(name: string, arch: "arm64" | "x64" | "unknown"): string {
 async function fetchLatestMacAsset(): Promise<Asset | null> {
   const debug = isDebugEnabled();
   try {
-    const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
-    if (debug) console.log("[MacDownload] fetching", url);
-    const res = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+    if (debug) console.log("[MacDownload] fetching", GITHUB_API_LATEST_RELEASE);
+    const res = await fetch(GITHUB_API_LATEST_RELEASE, {
+      headers: { Accept: "application/vnd.github+json" },
+    });
     if (!res.ok) {
       if (debug) console.warn("[MacDownload] release fetch failed", res.status, res.statusText);
       return null;
     }
     const data = await res.json();
-    const assets: any[] = Array.isArray(data?.assets) ? data.assets : [];
+    const assets: RawAsset[] = Array.isArray(data?.assets) ? data.assets : [];
     if (debug) console.log(`[MacDownload] release ${data?.tag_name} has ${assets.length} assets`);
     if (assets.length === 0) return null;
-    const arch = await detectMacArch();
+    const arch = await detectArchHighEntropy();
     if (debug) console.log("[MacDownload] detected arch:", arch);
 
     if (debug) {
@@ -231,7 +152,7 @@ export function MacDownload() {
   };
 
   const openReleasesPage = () => {
-    window.open(`https://github.com/${GITHUB_REPO}/releases`, "_blank", "noopener");
+    window.open(GITHUB_RELEASES_URL, "_blank", "noopener");
   };
 
   // Stream the asset into a Blob so we can trigger the browser's download

@@ -257,7 +257,6 @@ ipcMain.handle("app:show-about", () => {
   if (typeof app.showAboutPanel === "function") app.showAboutPanel();
   return BUILD_INFO;
 });
-ipcMain.handle("app:get-build-info", () => BUILD_INFO);
 
 app.whenReady().then(async () => {
   // ---- Inject CSP header for every renderer response ----

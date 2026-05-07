@@ -112,13 +112,6 @@ export function TextRewriter({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When the parent's transcript changes (e.g. dictation finishes), pull it in
-  // unless the user has started editing. Cheap heuristic: only sync if the
-  // textarea is empty or matches a previous initialText.
-  if (initialText && !input) {
-    // Lazy init in render is fine — useState already captured the first value.
-  }
-
   const run = async () => {
     const text = input.trim();
     if (!text) {
