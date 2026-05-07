@@ -1,5 +1,7 @@
+import { useCallback, useEffect, useState } from "react";
+import { Minimize2 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
-import { useDeepLink } from "@/hooks/useDeepLink";
+import { useDictateCommand, type AppTab } from "@/hooks/useDictateCommand";
 import { Logo } from "@/components/Logo";
 import Auth from "./Auth";
 import { Dictation } from "@/components/Dictation";
@@ -15,50 +17,31 @@ import { InstallIphoneButton } from "@/components/InstallIphoneButton";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { ReleaseStatus } from "@/components/ReleaseStatus";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { MiniSnippets, isMiniMode, setMiniMode } from "@/components/MiniSnippets";
+import { MiniSnippets } from "@/components/MiniSnippets";
 import { Button } from "@/components/ui/button";
-import { Minimize2 } from "lucide-react";
+import { isMiniMode, setMiniMode } from "@/lib/mini-mode";
 import { supabase } from "@/integrations/supabase/client";
-import { useCallback, useEffect, useRef, useState } from "react";
 
-type Tab = "dictate" | "snippets" | "history";
+const VALID_TABS: AppTab[] = ["dictate", "snippets", "history"];
 
-const VALID_TABS: Tab[] = ["dictate", "snippets", "history"];
-
-function tabFromHash(): Tab | null {
+function tabFromHash(): AppTab | null {
   const h = window.location.hash.replace(/^#\/?/, "").toLowerCase();
-  return (VALID_TABS as string[]).includes(h) ? (h as Tab) : null;
+  return (VALID_TABS as string[]).includes(h) ? (h as AppTab) : null;
+}
+
+function shouldStartInMini(): boolean {
+  if (typeof window === "undefined") return false;
+  if (new URLSearchParams(window.location.search).get("tray") === "1") return true;
+  return isMiniMode();
 }
 
 const Index = () => {
   const { session, loading } = useSession();
-  const [tab, setTabState] = useState<Tab>(() => tabFromHash() ?? "dictate");
-  const [dictatePrefill, setDictatePrefill] = useState<string | undefined>(undefined);
-  const [dictateCommand, setDictateCommand] = useState<{
-    nonce: number;
-    mode?: "live" | "stop" | "toggle" | "pause" | "resume";
-    action?: "copy" | "clear";
-  }>({ nonce: 0 });
-  // Tray (menu-bar) launches with ?tray=1 — start in mini snippet picker.
-  const [mini, setMini] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("tray") === "1") return true;
-    }
-    return isMiniMode();
-  });
-
-  const enterMini = useCallback(() => {
-    setMiniMode(true);
-    setMini(true);
-  }, []);
-  const exitMini = useCallback(() => {
-    setMiniMode(false);
-    setMini(false);
-  }, []);
+  const [tab, setTabState] = useState<AppTab>(() => tabFromHash() ?? "dictate");
+  const [mini, setMini] = useState<boolean>(shouldStartInMini);
 
   // Keep tab + URL hash in sync so reloads land on the same tab.
-  const setTab = useCallback((t: Tab) => {
+  const setTab = useCallback((t: AppTab) => {
     setTabState(t);
     if (tabFromHash() !== t) {
       const url = `${window.location.pathname}${window.location.search}#${t}`;
@@ -75,55 +58,29 @@ const Index = () => {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // Strip the one-shot ?deeplink= param after we consume it so a reload
-  // doesn't re-fire commands like mode=live.
-  const consumedQuery = useRef(false);
-  useEffect(() => {
-    if (consumedQuery.current) return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("deeplink")) {
-      consumedQuery.current = true;
-      params.delete("deeplink");
-      const qs = params.toString();
-      const url = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`;
-      window.history.replaceState(null, "", url);
-    }
+  const { prefill, command } = useDictateCommand(setTab);
+
+  const enterMini = useCallback(() => {
+    setMiniMode(true);
+    setMini(true);
+  }, []);
+  const exitMini = useCallback(() => {
+    setMiniMode(false);
+    setMini(false);
   }, []);
 
-  useDeepLink(
-    useCallback((link) => {
-      if (link.target === "dictate") {
-        const text = link.params.get("text");
-        if (text) setDictatePrefill(text);
-        const rawMode = link.params.get("mode")?.toLowerCase();
-        const rawAction = link.params.get("action")?.toLowerCase();
-        const mode =
-          rawMode === "live" || rawMode === "stop" || rawMode === "toggle" || rawMode === "pause" || rawMode === "resume"
-            ? rawMode
-            : undefined;
-        const action =
-          rawAction === "copy" || rawAction === "clear" ? rawAction : undefined;
-        if (mode || action) {
-          setDictateCommand((c) => ({ nonce: c.nonce + 1, mode, action }));
-        }
-        setTab("dictate");
-      } else if (link.target === "snippets") {
-        setTab("snippets");
-      } else if (link.target === "history") {
-        setTab("history");
-      }
-    }, [setTab])
-  );
-
   if (loading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">…</div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">
+        …
+      </div>
+    );
   }
   if (!session) return <Auth />;
   if (mini) return <MiniSnippets userId={session.user.id} onExit={exitMini} />;
 
   return (
     <div className="min-h-screen bg-background paper-grain">
-      {/* Mac titlebar */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -167,7 +124,9 @@ const Index = () => {
               key={t}
               onClick={() => setTab(t)}
               className={`px-5 py-1.5 rounded-full text-sm font-mono-tight uppercase tracking-wider transition ${
-                tab === t ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                tab === t
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {t}
@@ -176,11 +135,7 @@ const Index = () => {
         </div>
 
         {tab === "dictate" && (
-          <Dictation
-            userId={session.user.id}
-            prefill={dictatePrefill}
-            command={dictateCommand}
-          />
+          <Dictation userId={session.user.id} prefill={prefill} command={command} />
         )}
         {tab === "snippets" && <Snippets userId={session.user.id} />}
         {tab === "history" && <ClipboardHistory userId={session.user.id} />}
@@ -196,7 +151,6 @@ const Index = () => {
         <div className="mt-8 flex justify-center">
           <VersionBadge />
         </div>
-
       </main>
       <UpdateChecker />
     </div>

@@ -1,33 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Loader2, Copy, ArrowDownToLine, Mic, Square } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useScribeSession } from "@/hooks/useScribeSession";
 import { recordClipboard } from "@/lib/clipboard";
-import { requestMicPermission, micDeniedMessage } from "@/lib/mic";
-
-export type RewriteStyle = {
-  id: string;
-  label: string;
-  hint: string;
-};
-
-// Mirrors the styles in the expand-text edge function. The server is the source
-// of truth for the actual prompt — this list is just for the picker UI.
-export const REWRITE_STYLES: RewriteStyle[] = [
-  { id: "email-formal", label: "Email · Formal", hint: "Polished business email with subject" },
-  { id: "email-concise", label: "Email · Concise", hint: "Under 80 words, direct" },
-  { id: "email-friendly", label: "Email · Friendly", hint: "Warm, conversational" },
-  { id: "instructions", label: "Instructions", hint: "Numbered step-by-step" },
-  { id: "bullets", label: "Bullets", hint: "3–7 tight bullet points" },
-  { id: "meeting", label: "Meeting notes", hint: "Decisions, actions, questions" },
-  { id: "slack", label: "Slack message", hint: "Short, scannable, friendly" },
-  { id: "polish", label: "Polish", hint: "Light edit, same meaning" },
-  { id: "expand", label: "Expand", hint: "Terse → full prose" },
-];
+import {
+  DEFAULT_REWRITE_STYLE_ID,
+  REWRITE_STYLES,
+} from "@/lib/rewrite-styles";
+import {
+  RewriteActions,
+  RewriteInput,
+  RewriteOutput,
+  StyleChips,
+} from "@/components/TextRewriterView";
 
 export function TextRewriter({
   userId,
@@ -40,23 +28,20 @@ export function TextRewriter({
   onReplace?: (text: string) => void;
 }) {
   const [input, setInput] = useState(initialText);
-  const [style, setStyle] = useState<string>("polish");
+  const [style, setStyle] = useState<string>(DEFAULT_REWRITE_STYLE_ID);
   const [extra, setExtra] = useState("");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [dictateStarting, setDictateStarting] = useState(false);
   // Snapshot of `input` at the moment dictation starts. Live partial transcript
   // is appended visually; on commit it's folded into the snapshot so the
   // textarea remains the single source of truth.
   const baseTextRef = useRef("");
   const [livePartial, setLivePartial] = useState("");
 
-  const scribe = useScribe({
-    modelId: "scribe_v2_realtime",
-    commitStrategy: CommitStrategy.VAD,
-    onPartialTranscript: (d: any) => setLivePartial(d?.text ?? ""),
-    onCommittedTranscript: (d: any) => {
-      const chunk = (d?.text ?? "").trim();
+  const { scribe, starting: dictateStarting, start, stop } = useScribeSession({
+    onPartialTranscript: setLivePartial,
+    onCommittedTranscript: (text) => {
+      const chunk = text.trim();
       if (!chunk) return;
       baseTextRef.current = baseTextRef.current
         ? `${baseTextRef.current} ${chunk}`
@@ -68,32 +53,13 @@ export function TextRewriter({
 
   const startDictation = useCallback(async () => {
     if (scribe.isConnected || dictateStarting) return;
-    setDictateStarting(true);
-    try {
-      const perm = await requestMicPermission();
-      if (perm.state !== "granted") {
-        const m = micDeniedMessage();
-        toast.error(perm.error ?? m.title, { description: m.steps.join(" • ") });
-        return;
-      }
-      perm.stream?.getTracks().forEach((t) => t.stop());
-      const { data, error } = await supabase.functions.invoke("elevenlabs-token");
-      if (error || !data?.token) throw new Error(error?.message ?? "No token");
-      baseTextRef.current = input;
-      setLivePartial("");
-      await scribe.connect({
-        token: data.token,
-        microphone: { echoCancellation: true, noiseSuppression: true },
-      });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to start dictation");
-    } finally {
-      setDictateStarting(false);
-    }
-  }, [scribe, dictateStarting, input]);
+    baseTextRef.current = input;
+    setLivePartial("");
+    await start();
+  }, [scribe.isConnected, dictateStarting, input, start]);
 
   const stopDictation = useCallback(async () => {
-    try { await scribe.disconnect(); } catch {}
+    await stop();
     if (livePartial.trim()) {
       const merged = baseTextRef.current
         ? `${baseTextRef.current} ${livePartial.trim()}`
@@ -102,13 +68,16 @@ export function TextRewriter({
       setInput(merged);
     }
     setLivePartial("");
-  }, [scribe, livePartial]);
+  }, [stop, livePartial]);
 
   // Cleanly disconnect if the component unmounts mid-dictation.
   useEffect(() => {
     return () => {
-      if (scribe.isConnected) { try { scribe.disconnect(); } catch {} }
+      if (scribe.isConnected) {
+        stop();
+      }
     };
+    // Run only on unmount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -172,60 +141,16 @@ export function TextRewriter({
         )}
       </div>
 
-      <div className="relative mb-4">
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Paste a draft, dictate with the mic, or pull your transcript…"
-          className="min-h-[120px] pr-14 font-serif-display text-base"
-        />
-        {livePartial && (
-          <div className="px-3 pt-2 text-sm text-muted-foreground italic">
-            …{livePartial}
-          </div>
-        )}
-        <Button
-          type="button"
-          size="icon"
-          variant={scribe.isConnected ? "destructive" : "outline"}
-          onClick={scribe.isConnected ? stopDictation : startDictation}
-          disabled={dictateStarting}
-          className="absolute top-2 right-2 h-9 w-9 rounded-full"
-          title={scribe.isConnected ? "Stop dictation" : "Dictate"}
-          aria-label={scribe.isConnected ? "Stop dictation" : "Dictate"}
-        >
-          {dictateStarting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : scribe.isConnected ? (
-            <Square className="h-3.5 w-3.5 fill-current" />
-          ) : (
-            <Mic className="h-4 w-4" />
-          )}
-        </Button>
-        {scribe.isConnected && (
-          <span className="absolute bottom-2 right-3 text-[10px] font-mono-tight uppercase tracking-widest text-[hsl(var(--signal))]">
-            ● Listening
-          </span>
-        )}
-      </div>
+      <RewriteInput
+        input={input}
+        setInput={setInput}
+        livePartial={livePartial}
+        isConnected={scribe.isConnected}
+        starting={dictateStarting}
+        onToggleDictation={scribe.isConnected ? stopDictation : startDictation}
+      />
 
-      {/* Style chips */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        {REWRITE_STYLES.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => setStyle(s.id)}
-            className={`px-3 py-1.5 rounded-full text-xs font-mono-tight uppercase tracking-wider border transition ${
-              style === s.id
-                ? "bg-foreground text-background border-foreground"
-                : "bg-background text-muted-foreground border-border hover:text-foreground"
-            }`}
-            title={s.hint}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <StyleChips selected={style} onSelect={setStyle} />
       {active && (
         <p className="text-xs text-muted-foreground mb-4 italic">{active.hint}</p>
       )}
@@ -238,53 +163,24 @@ export function TextRewriter({
         maxLength={500}
       />
 
-      <div className="flex items-center gap-3 mb-4">
-        <Button onClick={run} disabled={loading || !input.trim()}>
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Rewriting…
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              Rewrite
-            </>
-          )}
-        </Button>
-        {output && (
-          <>
-            <Button variant="ghost" size="sm" onClick={copy}>
-              <Copy className="h-4 w-4" />
-              Copy
-            </Button>
-            {onReplace && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  onReplace(output);
-                  toast.success("Replaced transcript");
-                }}
-              >
-                <ArrowDownToLine className="h-4 w-4" />
-                Use as transcript
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={useAsInput}>
-              ↑ Use as input
-            </Button>
-          </>
-        )}
-      </div>
+      <RewriteActions
+        loading={loading}
+        inputEmpty={!input.trim()}
+        output={output}
+        onRun={run}
+        onCopy={copy}
+        onUseAsInput={useAsInput}
+        onReplace={
+          onReplace
+            ? () => {
+                onReplace(output);
+                toast.success("Replaced transcript");
+              }
+            : undefined
+        }
+      />
 
-      {output && (
-        <div className="rounded-xl bg-background/60 border border-dashed p-5 animate-fade-in">
-          <pre className="font-serif-display text-base whitespace-pre-wrap text-foreground leading-relaxed font-[inherit]">
-            {output}
-          </pre>
-        </div>
-      )}
+      <RewriteOutput output={output} />
     </div>
   );
 }

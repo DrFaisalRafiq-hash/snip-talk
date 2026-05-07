@@ -1,23 +1,18 @@
-import { useCallback, useState, useEffect } from "react";
-import { TextRewriter } from "@/components/TextRewriter";
-import { useScribe, CommitStrategy } from "@elevenlabs/react";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Mic, MicOff, Square, Copy, Trash2, ShieldAlert, Pause, Play } from "lucide-react";
+import { TextRewriter } from "@/components/TextRewriter";
 import {
-  queryMicPermission,
-  requestMicPermission,
-  micDeniedMessage,
-  isMac,
-  isElectron,
-  type MicPermissionState,
-} from "@/lib/mic";
+  DictationControls,
+  DictationDisplay,
+  DictationHeader,
+  MicDeniedNotice,
+} from "@/components/DictationView";
+import { useScribeSession } from "@/hooks/useScribeSession";
+import { useMicPermission } from "@/hooks/useMicPermission";
 import { recordClipboard } from "@/lib/clipboard";
 import { matchesShortcut, useShortcut } from "@/lib/shortcut";
-import { ShortcutEditor } from "@/components/ShortcutEditor";
 
-type DictationCommand = {
+export type DictationCommand = {
   /** Bumped each time the deep link arrives so effects re-run on repeats. */
   nonce: number;
   /** "live" -> auto-start, "stop" -> auto-stop, "toggle" -> flip current state. */
@@ -26,22 +21,27 @@ type DictationCommand = {
   action?: "copy" | "clear";
 };
 
-export function Dictation({
-  userId,
-  prefill,
-  command,
-}: {
+type DictationProps = {
   userId: string;
   prefill?: string;
   command?: DictationCommand;
-}) {
+};
+
+export function Dictation({ userId, prefill, command }: DictationProps) {
   const [partial, setPartial] = useState("");
   const [committed, setCommitted] = useState<string[]>(prefill ? [prefill] : []);
-  const [starting, setStarting] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [micState, setMicState] = useState<MicPermissionState>("unknown");
+  const micState = useMicPermission();
 
-  // Apply prefill whenever a new value comes in (e.g. another deep link arrives).
+  const { scribe, starting, start: startSession, stop: stopSession } = useScribeSession({
+    onPartialTranscript: setPartial,
+    onCommittedTranscript: (text) => {
+      setCommitted((prev) => [...prev, text]);
+      setPartial("");
+    },
+  });
+
+  // Apply prefill whenever a new value arrives (e.g. another deep link).
   useEffect(() => {
     if (prefill && prefill.trim()) {
       setCommitted([prefill]);
@@ -49,91 +49,49 @@ export function Dictation({
     }
   }, [prefill]);
 
-  const scribe = useScribe({
-    modelId: "scribe_v2_realtime",
-    commitStrategy: CommitStrategy.VAD,
-    onPartialTranscript: (d: any) => setPartial(d?.text ?? ""),
-    onCommittedTranscript: (d: any) => {
-      setCommitted((prev) => [...prev, d?.text ?? ""]);
-      setPartial("");
-    },
-  });
-
-  // Initial permission probe + live updates when the user changes it in the OS/browser.
-  useEffect(() => {
-    let cancelled = false;
-    queryMicPermission().then((s) => !cancelled && setMicState(s));
-    let status: any;
-    (navigator as any).permissions
-      ?.query?.({ name: "microphone" as PermissionName })
-      .then((s: any) => {
-        status = s;
-        s.onchange = () => setMicState(s.state as MicPermissionState);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-      if (status) status.onchange = null;
-    };
-  }, []);
-
   const start = useCallback(async () => {
-    setStarting(true);
-    try {
-      const perm = await requestMicPermission();
-      setMicState(perm.state);
-      if (perm.state !== "granted") {
-        const m = micDeniedMessage();
-        if (perm.state === "denied") {
-          toast.error(m.title, { description: m.steps.join(" • ") });
-        } else {
-          toast.error(perm.error ?? "Microphone unavailable");
-        }
-        return;
-      }
-      // Stop the probe stream immediately — Scribe opens its own.
-      perm.stream?.getTracks().forEach((t) => t.stop());
-
-      const { data, error } = await supabase.functions.invoke("elevenlabs-token");
-      if (error || !data?.token) throw new Error(error?.message ?? "No token");
-      await scribe.connect({
-        token: data.token,
-        microphone: { echoCancellation: true, noiseSuppression: true },
-      });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to start");
-    } finally {
-      setStarting(false);
-    }
-  }, [scribe]);
+    const ok = await startSession();
+    if (ok) setPaused(false);
+  }, [startSession]);
 
   const stop = useCallback(async () => {
-    try { await scribe.disconnect(); } catch {}
+    await stopSession();
     setPaused(false);
-  }, [scribe]);
+  }, [stopSession]);
 
-  // Pause = end the live session but keep the transcript so the user can resume.
-  // Scribe doesn't expose a native pause, so we disconnect and reconnect on resume.
+  // Pause = end the live session but keep the transcript so the user can
+  // resume. Scribe doesn't expose a native pause, so we disconnect and
+  // reconnect on resume.
   const pause = useCallback(async () => {
     if (!scribe.isConnected) return;
-    try {
-      await scribe.disconnect();
-      // Promote any in-flight partial to committed so it isn't lost.
-      setCommitted((prev) => (partial ? [...prev, partial] : prev));
-      setPartial("");
-      setPaused(true);
-      toast.message("Paused", { description: "Recording will resume when you press play." });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to pause");
-    }
-  }, [scribe, partial]);
+    await stopSession();
+    // Promote any in-flight partial to committed so it isn't lost.
+    setCommitted((prev) => (partial ? [...prev, partial] : prev));
+    setPartial("");
+    setPaused(true);
+    toast.message("Paused", { description: "Recording will resume when you press play." });
+  }, [scribe.isConnected, stopSession, partial]);
 
   const resume = useCallback(async () => {
     setPaused(false);
-    await start();
-  }, [start]);
+    await startSession();
+  }, [startSession]);
 
-  // Keyboard shortcut (user-editable) toggles dictation
+  const fullText = [...committed, partial].filter(Boolean).join(" ");
+
+  const copy = useCallback(async () => {
+    if (!fullText) return;
+    await navigator.clipboard.writeText(fullText);
+    await recordClipboard(userId, fullText, "dictation");
+    toast.success("Copied");
+  }, [fullText, userId]);
+
+  const clear = useCallback(() => {
+    setCommitted([]);
+    setPartial("");
+  }, []);
+
+  // Keyboard shortcut (user-editable) toggles dictation.
   const shortcut = useShortcut();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -146,165 +104,63 @@ export function Dictation({
     return () => window.removeEventListener("keydown", onKey);
   }, [scribe.isConnected, starting, start, stop, shortcut]);
 
-  const fullText = [...committed, partial].filter(Boolean).join(" ");
-
-  const copy = async () => {
-    if (!fullText) return;
-    await navigator.clipboard.writeText(fullText);
-    await recordClipboard(userId, fullText, "dictation");
-    toast.success("Copied");
-  };
-
-  const clear = () => { setCommitted([]); setPartial(""); };
-
-  // Deep-link command runner: react to ?mode=live|stop|toggle|pause|resume and ?action=copy|clear
+  // Deep-link command runner: react to ?mode=…&action=… arrivals.
   useEffect(() => {
     if (!command || !command.nonce) return;
-    if (command.mode === "live" && !scribe.isConnected && !starting) {
-      start();
-    } else if (command.mode === "stop" && scribe.isConnected) {
-      stop();
-    } else if (command.mode === "pause" && scribe.isConnected) {
-      pause();
-    } else if (command.mode === "resume" && !scribe.isConnected && paused && !starting) {
-      resume();
-    } else if (command.mode === "toggle") {
+    if (command.mode === "live" && !scribe.isConnected && !starting) start();
+    else if (command.mode === "stop" && scribe.isConnected) stop();
+    else if (command.mode === "pause" && scribe.isConnected) pause();
+    else if (command.mode === "resume" && !scribe.isConnected && paused && !starting) resume();
+    else if (command.mode === "toggle") {
       if (scribe.isConnected) pause();
       else if (paused && !starting) resume();
       else if (!starting) start();
     }
-    if (command.action === "copy") {
-      copy();
-    } else if (command.action === "clear") {
-      clear();
-    }
+    if (command.action === "copy") copy();
+    else if (command.action === "clear") clear();
+    // Re-run only when a new command arrives, identified by its nonce.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command?.nonce]);
 
   const denied = micState === "denied" || micState === "unsupported";
-  const denyInfo = micDeniedMessage();
 
   return (
     <>
-    <div className="bg-card border rounded-2xl p-8 shadow-[var(--shadow-paper)]">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <span className={`traffic-dot ${scribe.isConnected ? "bg-[hsl(var(--signal))]" : paused ? "bg-amber-500" : "bg-muted-foreground/30"}`} />
-          <span className="font-mono-tight text-xs uppercase tracking-widest text-muted-foreground">
-            {scribe.isConnected ? "Listening" : starting ? "Connecting" : paused ? "Paused" : denied ? "Mic blocked" : "Idle"}
-          </span>
-          <ShortcutEditor />
-        </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={copy} disabled={!fullText}><Copy className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={clear} disabled={!fullText}><Trash2 className="h-4 w-4" /></Button>
-        </div>
-      </div>
+      <div className="bg-card border rounded-2xl p-8 shadow-[var(--shadow-paper)]">
+        <DictationHeader
+          isConnected={scribe.isConnected}
+          starting={starting}
+          paused={paused}
+          denied={denied}
+          fullText={fullText}
+          onCopy={copy}
+          onClear={clear}
+        />
 
-      {denied && (
-        <div className="mb-5 rounded-xl border border-destructive/40 bg-destructive/5 p-4 animate-fade-in">
-          <div className="flex items-start gap-3">
-            <ShieldAlert className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <p className="font-mono-tight text-xs uppercase tracking-widest text-destructive mb-2">
-                {denyInfo.title}
-              </p>
-              <ol className="text-sm text-foreground/80 space-y-1 list-decimal list-inside">
-                {denyInfo.steps.map((s) => <li key={s}>{s}</li>)}
-              </ol>
-              {isMac && isElectron && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-3"
-                  onClick={() => window.open("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")}
-                >
-                  Open System Settings
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+        {denied && <MicDeniedNotice />}
 
-      <div className="min-h-[260px] rounded-xl bg-background/60 border border-dashed p-6 mb-6">
-        {fullText ? (
-          <p className="font-serif-display text-3xl leading-snug text-foreground">
-            {committed.join(" ")}{" "}
-            <span className="text-muted-foreground italic">{partial}</span>
-          </p>
-        ) : (
-          <p className="font-serif-display text-2xl text-muted-foreground/60 italic">
-            {denied ? "Grant microphone access above to start dictating…" : "Press the mic and start speaking…"}
-          </p>
-        )}
-      </div>
+        <DictationDisplay
+          committed={committed}
+          partial={partial}
+          fullText={fullText}
+          denied={denied}
+        />
 
-      <div className="flex items-center justify-center gap-4">
-        {scribe.isConnected ? (
-          <>
-            <Button
-              onClick={pause}
-              size="lg"
-              variant="outline"
-              className="rounded-full h-12 w-12 p-0"
-              title="Pause"
-              aria-label="Pause recording"
-            >
-              <Pause className="h-5 w-5" />
-            </Button>
-            <Button onClick={stop} size="lg" variant="destructive" className="rounded-full h-16 w-16 p-0" title="Stop" aria-label="Stop recording">
-              <Square className="h-5 w-5 fill-current" />
-            </Button>
-          </>
-        ) : paused ? (
-          <>
-            <Button
-              onClick={resume}
-              size="lg"
-              disabled={starting || micState === "unsupported"}
-              className="rounded-full h-16 w-16 p-0"
-              title="Resume"
-              aria-label="Resume recording"
-            >
-              <Play className="h-6 w-6" />
-            </Button>
-            <Button
-              onClick={() => { setPaused(false); clear(); }}
-              size="lg"
-              variant="outline"
-              className="rounded-full h-12 w-12 p-0"
-              title="Discard & reset"
-              aria-label="Discard and reset"
-            >
-              <Square className="h-4 w-4" />
-            </Button>
-          </>
-        ) : (
-          <Button
-            onClick={start}
-            size="lg"
-            disabled={starting || micState === "unsupported"}
-            className="rounded-full h-16 w-16 p-0"
-            title="Start dictation"
-            aria-label="Start dictation"
-          >
-            {denied ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-          </Button>
-        )}
-        {scribe.isConnected && (
-          <div className="flex items-end gap-1 h-10">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <span
-                key={i}
-                className="bar w-1 bg-foreground rounded-full"
-                style={{ height: "100%", animationDelay: `${i * 0.12}s` }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
+        <DictationControls
+          isConnected={scribe.isConnected}
+          starting={starting}
+          paused={paused}
+          micState={micState}
+          denied={denied}
+          onStart={start}
+          onStop={stop}
+          onPause={pause}
+          onResume={resume}
+          onDiscard={() => {
+            setPaused(false);
+            clear();
+          }}
+        />
       </div>
 
       <TextRewriter
