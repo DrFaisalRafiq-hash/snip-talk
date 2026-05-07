@@ -61,15 +61,18 @@ jobs:
           set -euo pipefail
           # Native runners per arch — no cross-compilation.
           # Universal is produced by a separate merge job, not the matrix.
+          # Apple Silicon runners only — required for Node 24 (incompatible with macOS 13.4-).
+          # x64 builds cross-compile on arm64 via Rosetta + electron-packager --arch=x64.
+          # macos-15 is GA on GitHub-hosted runners; macos-14 used as a fallback for arm64.
           if [[ "$EVENT" == "workflow_dispatch" && -n "${ARCH_INPUT:-}" ]]; then
             case "$ARCH_INPUT" in
               arm64)     MATRIX='{"include":[{"arch":"arm64","runner":"macos-14"}]}'; UNI=false ;;
-              x64)       MATRIX='{"include":[{"arch":"x64","runner":"macos-13"}]}';   UNI=false ;;
-              universal) MATRIX='{"include":[{"arch":"arm64","runner":"macos-14"},{"arch":"x64","runner":"macos-13"}]}'; UNI=true ;;
+              x64)       MATRIX='{"include":[{"arch":"x64","runner":"macos-15"}]}';   UNI=false ;;
+              universal) MATRIX='{"include":[{"arch":"arm64","runner":"macos-14"},{"arch":"x64","runner":"macos-15"}]}'; UNI=true ;;
               *) echo "Unknown arch input: $ARCH_INPUT" >&2; exit 1 ;;
             esac
           else
-            MATRIX='{"include":[{"arch":"arm64","runner":"macos-14"},{"arch":"x64","runner":"macos-13"}]}'
+            MATRIX='{"include":[{"arch":"arm64","runner":"macos-14"},{"arch":"x64","runner":"macos-15"}]}'
             UNI=true
           fi
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
