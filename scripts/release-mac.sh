@@ -282,4 +282,7 @@ echo "   $DMG_PATH"
 echo
 echo "Verify:"
 echo "  shasum -a 256 -c $OUT_DIR/${ARTIFACT_BASE}.SHASUMS"
-[[ -n "${APPLE_IDENTITY:-}" ]] && echo "  codesign --verify --verbose=2 --detached ${ZIP_PATH}.sig $ZIP_PATH" || true
+if [[ -n "${APPLE_IDENTITY:-}" ]]; then
+  echo "  codesign --verify --verbose=2 --detached ${ZIP_PATH}.sig $ZIP_PATH"
+fi
+exit 0
