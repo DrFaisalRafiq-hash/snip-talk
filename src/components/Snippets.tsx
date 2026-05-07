@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,17 +28,36 @@ export function Snippets({ userId }: { userId: string }) {
     openSettings,
   } = useSnippetGlobalShortcuts(userId);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data, error } = await supabase
       .from("snippets")
       .select("*")
       .order("updated_at", { ascending: false });
-    if (error) return toast.error(error.message);
-    setItems(data ?? []);
-    if (!active && data?.length) setActive(data[0]);
-  };
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const next = data ?? [];
+    setItems(next);
+    // Auto-select the first item only if nothing is currently selected.
+    setActive((prev) => prev ?? next[0] ?? null);
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // Realtime: pick up edits from the mini-mode picker / other clients.
+    const channel = supabase
+      .channel("snippets-main")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "snippets" },
+        () => load(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [load]);
 
   const create = async () => {
     const { data, error } = await supabase

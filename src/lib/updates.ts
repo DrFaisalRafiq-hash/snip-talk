@@ -4,9 +4,12 @@
 // build's version, and picks the best installer asset for the current
 // platform/arch. No backend required; no auth needed for public repos.
 
-const GITHUB_REPO = "sniptalk/sniptalk"; // keep in sync with MacDownload.tsx
-const RELEASES_LATEST = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
-const RELEASES_HTML = `https://github.com/${GITHUB_REPO}/releases/latest`;
+import {
+  GITHUB_API_LATEST_RELEASE,
+  GITHUB_RELEASES_LATEST_URL,
+} from "@/lib/github";
+import { pickPlatformAsset } from "@/lib/mac-asset";
+import { detectArch, detectPlatform } from "@/lib/platform";
 
 export type UpdateAsset = {
   name: string;
@@ -26,64 +29,12 @@ export type UpdateInfo = {
   asset: UpdateAsset | null; // best installer for current platform, if any
 };
 
-type Platform = "mac" | "win" | "linux" | "other";
-type Arch = "arm64" | "x64" | "unknown";
-
-function detectPlatform(): { platform: Platform; arch: Arch } {
-  if (typeof navigator === "undefined") return { platform: "other", arch: "unknown" };
-  const ua = navigator.userAgent.toLowerCase();
-  const platform: Platform = /mac|darwin/.test(ua)
-    ? "mac"
-    : /win/.test(ua)
-    ? "win"
-    : /linux/.test(ua)
-    ? "linux"
-    : "other";
-  // Best-effort arch sniff (not always exposed). Treat Apple Silicon Macs
-  // and modern ARM Windows as arm64; everything else defaults to x64.
-  const arch: Arch =
-    /arm64|aarch64/.test(ua) || (platform === "mac" && (navigator as any).userAgentData?.platform === "macOS" && (navigator as any).userAgentData?.architecture === "arm")
-      ? "arm64"
-      : "x64";
-  return { platform, arch };
-}
-
-function pickAsset(assets: any[], platform: Platform, arch: Arch): UpdateAsset | null {
-  const score = (name: string): number => {
-    const s = name.toLowerCase();
-    let v = -1;
-    if (platform === "mac") {
-      if (!/(mac|darwin|osx)/.test(s)) return -1;
-      if (/\.(dmg|zip)$/.test(s)) v = 0;
-      if (s.endsWith(".dmg")) v += 10;
-      if (arch === "arm64" && /(arm64|aarch64|apple|universal)/.test(s)) v += 5;
-      if (arch === "x64" && /(x64|x86_64|intel|universal)/.test(s)) v += 5;
-    } else if (platform === "win") {
-      if (!/\.(exe|msi|zip)$/.test(s)) return -1;
-      if (!/(win|windows)/.test(s)) return -1;
-      v = s.endsWith(".exe") ? 10 : s.endsWith(".msi") ? 8 : 1;
-      if (arch === "arm64" && /arm64/.test(s)) v += 5;
-      if (arch === "x64" && /(x64|x86_64)/.test(s)) v += 5;
-    } else if (platform === "linux") {
-      if (!/\.(appimage|deb|rpm|tar\.gz|tgz)$/.test(s)) return -1;
-      v = s.endsWith(".appimage") ? 10 : 5;
-      if (arch === "arm64" && /(arm64|aarch64)/.test(s)) v += 5;
-      if (arch === "x64" && /(x64|x86_64|amd64)/.test(s)) v += 5;
-    }
-    return v;
-  };
-  const best = assets
-    .map((a) => ({ a, s: score(a.name) }))
-    .filter((x) => x.s >= 0)
-    .sort((a, b) => b.s - a.s)[0];
-  if (!best) return null;
-  return {
-    name: best.a.name,
-    url: best.a.browser_download_url,
-    size: best.a.size,
-    contentType: best.a.content_type,
-  };
-}
+type GithubAsset = {
+  name: string;
+  browser_download_url: string;
+  size?: number;
+  content_type?: string;
+};
 
 // Strip leading "v" and anything after "+" so "v1.2.3+abc" -> "1.2.3".
 function normalize(v: string): string {
@@ -109,27 +60,41 @@ export function compareVersions(a: string, b: string): number {
 
 export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo | null> {
   try {
-    const res = await fetch(RELEASES_LATEST, {
+    const res = await fetch(GITHUB_API_LATEST_RELEASE, {
       headers: { Accept: "application/vnd.github+json" },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[updates] GitHub releases API returned ${res.status}`);
+      return null;
+    }
     const data = await res.json();
     const tag: string = data?.tag_name ?? "";
     if (!tag) return null;
     const latestVersion = normalize(tag);
-    const { platform, arch } = detectPlatform();
-    const asset = Array.isArray(data.assets) ? pickAsset(data.assets, platform, arch) : null;
+    const platform = detectPlatform();
+    const arch = detectArch();
+    const rawAssets: GithubAsset[] = Array.isArray(data?.assets) ? data.assets : [];
+    const picked = pickPlatformAsset(rawAssets, platform, arch);
+    const asset: UpdateAsset | null = picked
+      ? {
+          name: picked.name,
+          url: picked.browser_download_url,
+          size: picked.size,
+          contentType: picked.content_type,
+        }
+      : null;
     return {
       currentVersion: normalize(currentVersion),
       latestVersion,
       hasUpdate: compareVersions(latestVersion, currentVersion) > 0,
       tag,
-      htmlUrl: data?.html_url ?? RELEASES_HTML,
+      htmlUrl: data?.html_url ?? GITHUB_RELEASES_LATEST_URL,
       publishedAt: data?.published_at,
       notes: data?.body,
       asset,
     };
-  } catch {
+  } catch (e) {
+    console.warn("[updates] checkForUpdate failed", e);
     return null;
   }
 }
